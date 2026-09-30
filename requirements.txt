@@ -1,0 +1,9 @@
+# Runtime dependencies for ComfyUI-Kling-Direct
+# torch / torchaudio are provided by the ComfyUI installation itself
+# (CPU or CUDA variant) and must NOT be installed from here.
+requests
+Pillow
+numpy
+scipy
+soundfile
+opencv-python-headless
