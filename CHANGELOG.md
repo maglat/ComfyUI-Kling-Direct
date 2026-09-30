@@ -5,6 +5,26 @@ All notable changes to ComfyUI-Kling-Direct are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+
+## [3.0.0] — 2026-09-30
+
+Fork release adding direct support for Kling's current single-API-key and Kling 3.0 video API while preserving the original Kling-Direct nodes for legacy workflows.
+
+### Added
+- Single `KLING_API_KEY` Bearer authentication for Kling 3.0 Full nodes.
+- New-standard video API client using path-per-model endpoints and unified `/tasks` polling.
+- Kling 3.0 Text-to-Video: 3–15 s, 720p/1080p/4K, native audio, multi-shot.
+- Kling 3.0 Image-to-Video: First/Last Frame, elements, 3–15 s, 720p/1080p/4K.
+- Kling 3.0 Turbo support with capability validation.
+- Kling 3.0 Omni Video with frame/reference-image/video/element inputs.
+- Kling 3.0 Motion Control.
+- Kling Image 3.0 and Kling Image 3.0 Omni, including 4K Omni/series generation.
+- Storyboard Builder, current Task Status and Health Check nodes.
+- Regression tests for Bearer auth, storyboard validation, Turbo limits and current T2V payload shape.
+
+### Compatibility
+- Existing legacy Kling-Direct nodes and workflows remain registered and unchanged.
+
 ## [2.1.4] — 2026-05-17
 
 Republish to resolve registry/local version drift. Prior publish attempts
