@@ -8,8 +8,9 @@ dependencies = [
     "requests",
     "Pillow",
     "numpy",
-    "torch",
-    "opencv-python",
+    "scipy",
+    "soundfile",
+    "opencv-python-headless",
 ]
 
 [project.urls]
