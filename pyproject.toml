@@ -1,7 +1,7 @@
 [project]
 name = "kling-direct"
-description = "Full-featured Kling AI integration for ComfyUI - Video, Image, Audio generation"
-version = "2.1.6"
+description = "Direct Kling AI integration for ComfyUI with Kling 3.0 Full API support"
+version = "3.0.0"
 license = "MIT"
 requires-python = ">=3.10"
 dependencies = [
@@ -13,7 +13,7 @@ dependencies = [
 ]
 
 [project.urls]
-Repository = "https://github.com/IxMxAMAR/ComfyUI-Kling-Direct"
+Repository = "https://github.com/maglat/ComfyUI-Kling-Direct"
 
 [tool.comfy]
 PublisherId = "ixmxamar"
