@@ -1,8 +1,52 @@
 # ComfyUI-Kling-Direct
 
-Direct Kling AI integration for ComfyUI with **Kling 3.0 Full** support.
+Direct Kling AI integration for ComfyUI with **Kling 4.0**, **Kling 3.0 Full**, and the original Kling-Direct legacy nodes.
 
-This fork keeps the original legacy nodes from IxMxAMAR/ComfyUI-Kling-Direct and adds a current API-key-first Kling 3.0 implementation for the 2026 Kling API.
+This fork keeps the original legacy nodes, adds direct Kling 3.0 REST support, and adds Kling 4.0 through Kling's official OAuth CLI/MCP transport.
+
+
+## Kling 4.0 support
+
+Kling 4.0 support in this fork uses Kling's official CLI/MCP transport rather than guessed REST endpoints. As of 2026-10-15, the public paid REST developer catalog still labels Kling 4.0 as Preview/Coming Soon, while the official CLI can access models enabled for the signed-in Kling account.
+
+### Kling 4.0 nodes
+
+- **Kling 4.0 - CLI Status & Capabilities**
+- **Kling 4.0 - Task Status**
+- **Kling 4.0 - Text to Video (Official CLI)**
+- **Kling 4.0 - Image to Video + Keyframes (Official CLI)**
+- **Kling 4.0 - Omni Reference (Official CLI)**
+
+The nodes call kling who_am_i before paid submissions. The live server declaration is used to verify that the selected model and requested parameter/input names are actually available for the current account.
+
+Full Kling 4.0 model ID: kling-video-v4_0
+
+Flash model ID: kling-video-v4_0_flash
+
+The ComfyUI implementation supports the published Kling 4.0 workflow envelope: 3-30 second Standard generation, 3-20 second Flash validation, Standard keyframe workflows with up to 10 total frame images in the node, Omni references, up to 10 reference images, up to 5 reference videos, Elements, optional audio reference, and a combined reference limit of 15 assets. Resolution and audio controls are sent only when the live model schema exposes those parameters.
+
+Flash is locally restricted to 720p and rejects tail/end-frame and multi-keyframe inputs before submission.
+
+### Kling 4.0 CLI setup
+
+The official Kling CLI requires Node.js 18 or newer.
+
+    node --version
+    npm i -g @klingai/cli-global --registry=https://registry.npmjs.org
+    kling --version
+    kling login
+    kling who_am_i
+
+Kling CLI authentication is OAuth-only. Complete the login flow on the ComfyUI server account. This project does not request or store the CLI OAuth token.
+
+After login, run **Kling 4.0 - CLI Status & Capabilities** in ComfyUI. It reports which Kling 4 models are currently advertised by the account without submitting a generation.
+
+### Kling 4.0 request safety
+
+Before spending credits, the nodes check the live model schema and local capability limits. They stop before submission when the model is unavailable, a requested keyframe slot is absent, Flash receives an unsupported option, or a requested resolution/audio parameter is not exposed by the server.
+
+The CLI is invoked without a shell. Advanced CLI arguments are tokenized as argv and cannot override the node's model, poll, or quiet transport controls.
+
 
 ## Highlights
 
