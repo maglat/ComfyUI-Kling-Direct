@@ -6,6 +6,27 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [4.1.0] — 2026-10-15
+
+Modernizes the Kling image stack and prepares the fork for future server-advertised image generations without inventing an unreleased Image 4.0 API.
+
+### Added
+- Dynamic Kling Image Models & Capabilities node using official CLI/MCP `who_am_i`.
+- Dynamic Text-to-Image CLI node with live model validation.
+- Dynamic Image-to-Image CLI node with up to 10 ComfyUI reference images.
+- Live argument and allowed-value validation before paid image submissions.
+- New REST Omni Image node with selectable `kling-v3-omni` and `kling-image-o1`.
+- Generic image result handling for official CLI `works[]` responses.
+- Regression coverage proving a future server-advertised model name such as `kling-image-v4_0` is not blocked client-side.
+
+### Compatibility
+- Existing Kling Image 3.0 Full nodes remain registered unchanged.
+- Existing Kling 4.0 video, Kling 3.0 REST, and legacy workflows remain intact.
+
+### Documentation
+- README fully rewritten to reflect v4.1.0 architecture, authentication paths, current model status, installation/update steps, Image O1 support, and Image 4.0 readiness.
+
+
 ## [4.0.0] — 2026-10-15
 
 Adds Kling 4.0 support through Kling's official OAuth CLI/MCP transport while keeping Kling 3.0 Full on the direct REST API and preserving legacy workflows.
