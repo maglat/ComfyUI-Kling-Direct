@@ -6,6 +6,30 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [4.0.0] — 2026-10-15
+
+Adds Kling 4.0 support through Kling's official OAuth CLI/MCP transport while keeping Kling 3.0 Full on the direct REST API and preserving legacy workflows.
+
+### Added
+- Kling 4.0 CLI Status & Capabilities node using live who_am_i discovery.
+- Kling 4.0 Task Status node using query_tasks.
+- Kling 4.0 Text-to-Video node.
+- Kling 4.0 Image-to-Video node with named multi-keyframe input support.
+- Kling 4.0 Omni Reference node for image, video, audio and Element references.
+- Runtime support for kling-video-v4_0 and kling-video-v4_0_flash when advertised by the signed-in account.
+- Local validation for Standard 3-30 s and Flash 3-20 s duration limits.
+- Flash 720p-only validation and rejection of unsupported tail/multi-keyframe inputs.
+- Live-schema-gated resolution, audio and original-sound options.
+- Combined Omni reference-count validation before paid submission.
+- Mock tests for model discovery, Flash limits, live argument mapping and keyframe slot mapping.
+
+### Architecture
+- Kling 4.0 uses the official @klingai/cli-global package and OAuth login.
+- No undocumented Kling 4.0 REST endpoint or model payload is guessed.
+- Every paid 4.0 generation first validates the model against live who_am_i capability data.
+- Kling 3.0 Full continues to use the direct single-API-key REST implementation.
+
+
 ## [3.0.0] — 2026-09-30
 
 Fork release adding direct support for Kling's current single-API-key and Kling 3.0 video API while preserving the original Kling-Direct nodes for legacy workflows.
