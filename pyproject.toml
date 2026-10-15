@@ -1,7 +1,7 @@
 [project]
 name = "kling-direct"
-description = "Direct Kling AI integration for ComfyUI with Kling 3.0 Full API support"
-version = "3.0.0"
+description = "Direct Kling AI integration for ComfyUI with Kling 3.0 REST and Kling 4.0 official CLI/MCP support"
+version = "4.0.0"
 license = "MIT"
 requires-python = ">=3.10"
 dependencies = [
