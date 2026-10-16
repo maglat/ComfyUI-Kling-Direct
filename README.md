@@ -2,13 +2,13 @@
 
 A direct Kling AI integration for ComfyUI with:
 
-- **Kling 4.0 video** through Kling's official OAuth CLI/MCP transport
+- **schema-driven Kling video** through Kling's official OAuth CLI/MCP transport, including current Kling 4.x rollouts
 - **Kling Image 3.0 / Image 3.0 Omni / Image O1**
 - **dynamic image-model discovery** for future Kling image releases
 - **Kling 3.0 Full REST** support using the current single API key
 - the original Kling-Direct legacy nodes for existing workflows
 
-Current fork version: **4.1.0**
+Current fork version: **4.2.0**
 
 Repository: https://github.com/maglat/ComfyUI-Kling-Direct
 
@@ -16,7 +16,7 @@ Repository: https://github.com/maglat/ComfyUI-Kling-Direct
 
 ## Current model status
 
-As of **2026-10-15** the public Kling product/API split is:
+As of **2026-10-17** the public Kling product/API split is:
 
 | Area | Model | This fork |
 |---|---|---|
@@ -70,14 +70,14 @@ This fork currently supports **three Kling authentication generations** because 
 
 | Nodes | Authentication |
 |---|---|
-| Kling 4.0 video | official Kling CLI OAuth |
+| Modern Kling Video CLI | official Kling CLI OAuth |
 | Modern Kling Image CLI | official Kling CLI OAuth |
 | Kling 3.0 Full REST | single `KLING_API_KEY` |
 | Original legacy nodes | Access Key + Secret Key |
 
 ## Official Kling CLI / MCP
 
-Required for Kling 4.0 and the dynamic modern Image nodes.
+Required for the modern dynamic Kling Video and Kling Image nodes.
 
 Node.js 18+ is required.
 
@@ -119,13 +119,170 @@ The environment variable avoids storing the key inside workflow JSON.
 
 ---
 
-# Kling 4.0 Video
+# Kling Video - dynamic CLI/MCP layer
 
-Kling 4.0 support uses the **official Kling CLI/MCP transport**.
+Version **4.2.0** adds the recommended schema-driven video layer.
 
-The public paid REST developer interface had not yet published a final Kling 4.0 REST contract when this integration was implemented, so this fork does not guess undocumented endpoints.
+The official Kling CLI/MCP backend is treated as the source of truth. The new nodes do **not** assume a fixed Kling 4.0 model ID such as `kling-video-v4_0`. Instead, they read the model names, arguments, allowed values, input slots and combined-item limits returned by:
 
-## Nodes
+```bash
+kling who_am_i
+```
+
+This matters because Kling can roll out model names and capabilities per account/region before the public REST documentation is updated.
+
+## Recommended dynamic video nodes
+
+- **Kling Video - Models & Capabilities (Official CLI)**
+- **Kling Video - Task Status (Official CLI)**
+- **Kling Video - Text to Video (Dynamic CLI)**
+- **Kling Video - Image to Video / Keyframes (Dynamic CLI)**
+- **Kling Video - Omni / Video Edit (Dynamic CLI)**
+- **Kling Video - Motion Control (Dynamic CLI)**
+
+These nodes are the recommended path for Kling 4.x and future server-advertised video generations.
+
+## How model selection works
+
+The capability node filters the live `who_am_i` response for:
+
+```text
+text_to_video
+image_to_video
+omni_ref_video
+motion_control
+```
+
+It returns the model names that are actually enabled for each command.
+
+Generation nodes use a free-form model field. A model is accepted only when the live schema advertises it for that exact command.
+
+That means the client itself does not block future names such as a hypothetical:
+
+```text
+kling-video-v4_1
+kling-video-v5
+```
+
+but typing an invented model name does **not** bypass Kling's account entitlements: the node stops before a paid request if `who_am_i` does not list it.
+
+## Live argument validation
+
+For the dynamic nodes, these controls are schema-gated:
+
+- duration
+- aspect ratio
+- resolution
+- audio
+- dynamic range / HDR
+- keep-original-sound
+- Elements
+- named input slots
+
+When a live argument publishes `allowedValues`, the selected value is checked locally before generation.
+
+Set **duration = 0** or another control to **auto** when you want Kling's live/default behavior instead of forcing a value.
+
+### HDR / dynamic range
+
+The UI exposes:
+
+```text
+auto
+sdr
+hdr
+```
+
+but HDR is only submitted when the selected live model exposes a compatible `dynamicRange`/HDR argument. If it does not, an explicit HDR request fails before spending credits.
+
+This avoids claiming HDR support merely because it appeared in a marketing/release document.
+
+## Dynamic Image-to-Video / keyframes
+
+The dynamic I2V node no longer requires a hard-coded first-frame model layout.
+
+It supports:
+
+- optional first frame
+- optional tail/end frame
+- up to eight additional ComfyUI keyframe sockets
+- exact named live input slots through `named_inputs_json`
+- prompt-only operation when the selected live model declares no required image input
+
+Example named input:
+
+```json
+{
+  "some_new_server_slot": "https://example.com/reference.png"
+}
+```
+
+The slot name must exist in the selected model's live `inputs[]` declaration.
+
+This provides an escape hatch for new keyframe/input layouts without a custom-node release.
+
+## Dynamic Omni / Video Editing
+
+**Kling Video - Omni / Video Edit (Dynamic CLI)** supports:
+
+- up to 10 local ComfyUI reference-image sockets
+- additional video references
+- Elements JSON
+- a `primary_video` field for base/source/primary-video workflows
+- exact server-defined inputs through `named_inputs_json`
+- duration / aspect / resolution / audio / dynamic-range controls when declared
+- keep-original-sound when declared
+- live `combinedItemCap` validation
+
+If the selected model declares a named primary/base/source-video slot, `primary_video` is mapped to that slot. Otherwise it is passed as a normal official CLI video reference.
+
+Standalone audio-reference behavior is **not hard-coded** into the new dynamic Omni node. If Kling adds a dedicated audio input later, it can be passed through a server-declared named input instead of us inventing a permanent flag.
+
+## Combined reference limits
+
+The official capability schema may return:
+
+```text
+combinedItemCap:
+  maxItems
+  inputPrefixes
+  arguments
+```
+
+The dynamic Omni/I2V path uses this information rather than maintaining a separate hard-coded "15 items forever" rule.
+
+This is especially useful when future Kling generations change reference-count limits.
+
+## Motion Control
+
+The dynamic Motion Control node accepts any model advertised for `motion_control` and supports either:
+
+- a reference motion-video URL/local path, or
+- a saved Kling motion ID.
+
+Exactly one must be supplied.
+
+## Result handling
+
+The CLI output parser now understands both direct tool results and the official CLI envelope:
+
+```text
+{ ok, status, body }
+```
+
+It also unwraps polled:
+
+```text
+body.generations[].result
+```
+
+before extracting `generationId`, `status` and `works[]`.
+
+This fix is shared by the modern Image CLI nodes as well.
+
+## Kling 4.0 compatibility nodes
+
+The older nodes remain registered so existing v4.0/v4.1 workflows keep loading:
 
 - **Kling 4.0 - CLI Status & Capabilities**
 - **Kling 4.0 - Task Status**
@@ -133,46 +290,7 @@ The public paid REST developer interface had not yet published a final Kling 4.0
 - **Kling 4.0 - Image to Video + Keyframes (Official CLI)**
 - **Kling 4.0 - Omni Reference (Official CLI)**
 
-## Model IDs
-
-```text
-kling-video-v4_0
-kling-video-v4_0_flash
-```
-
-The selected model must also be advertised by `kling who_am_i` for the exact generation command before a paid task is submitted.
-
-## Full Kling 4.0
-
-The ComfyUI nodes handle the current published workflow envelope including:
-
-- Text to Video
-- Image to Video
-- 3-30 second duration
-- start/end-frame workflows
-- multiple keyframes
-- up to 10 total frame images in the I2V node
-- 21:9 / 16:9 / 1:1 / 9:16 / automatic aspect handling when declared
-- 720p / 1080p / 4K selection when declared by the live account schema
-- audio enable/disable when declared
-- Omni Reference
-- up to 10 reference images
-- up to 5 reference videos
-- Element references
-- optional audio reference
-- combined Omni reference validation up to 15 assets
-- result URL, local output file, video tensor, audio tensor and raw metadata
-
-## Kling 4.0 Flash
-
-The node validates known Flash limits before a paid request:
-
-- 3-20 seconds
-- 720p only
-- no tail/end frame
-- no multi-keyframe I2V
-
-Any additional server-side restrictions are still verified from the live model schema.
+Those compatibility nodes contain the earlier Kling-4-specific assumptions. For new workflows, prefer the **Kling Video - ... Dynamic CLI** nodes above.
 
 ---
 
@@ -397,11 +515,16 @@ ComfyUI-Kling-Direct
     +-- OAuth login
     +-- live who_am_i capability discovery
     |
-    +-- Kling 4.0 Video
-    |   +-- Standard
-    |   +-- Flash
-    |   +-- Keyframes
-    |   +-- Omni Reference
+    +-- Kling Video dynamic layer (recommended)
+    |   +-- live model discovery
+    |   +-- Text to Video
+    |   +-- Image to Video / dynamic keyframes
+    |   +-- Omni / Video Edit
+    |   +-- Motion Control
+    |   +-- live arguments + combinedItemCap
+    |
+    +-- Kling 4.0 compatibility nodes
+    |   +-- retained for existing workflows
     |
     +-- Kling Image
         +-- dynamic Text to Image

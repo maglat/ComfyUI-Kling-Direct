@@ -124,16 +124,40 @@ def _run_cli(args: Sequence[str], timeout: int = 60) -> Dict[str, Any]:
 
 
 def _unwrap_payload(value: Any) -> Dict[str, Any]:
+    """Unwrap the official CLI envelope and polled generation wrapper.
+
+    The CLI normally returns {ok, status, body}.  Polling may additionally
+    return body.generations[].result.  Prefer the nested tool payload before
+    treating a wrapper-level status as the generation status.
+    """
     if not isinstance(value, dict):
         return {}
-    if any(k in value for k in ("availableModels", "generationId", "works", "status")):
+
+    if any(k in value for k in ("availableModels", "available_models", "generationId", "generation_id", "works")):
         return value
-    for key in ("result", "data", "body", "content"):
+
+    generations = value.get("generations")
+    if isinstance(generations, list) and generations:
+        row = generations[0]
+        if isinstance(row, dict):
+            result = row.get("result")
+            if isinstance(result, dict):
+                payload = dict(_unwrap_payload(result))
+                payload.setdefault("generationId", row.get("generationId") or row.get("generation_id"))
+                payload.setdefault("status", row.get("status"))
+                return payload
+            if any(k in row for k in ("generationId", "generation_id", "status", "works")):
+                return row
+
+    for key in ("body", "result", "data", "content"):
         child = value.get(key)
         if isinstance(child, dict):
             found = _unwrap_payload(child)
             if found:
                 return found
+
+    if "status" in value:
+        return value
     return value
 
 
