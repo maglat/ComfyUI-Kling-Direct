@@ -6,6 +6,31 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [4.2.0] — 2026-10-17
+
+Adds a schema-driven Kling Video CLI/MCP layer so current Kling 4.x and future server-advertised video models no longer depend on guessed or hard-coded model IDs.
+
+### Added
+- Kling Video Models & Capabilities node for live model discovery across text_to_video, image_to_video, omni_ref_video and motion_control.
+- Dynamic Text-to-Video node with free-form live model selection.
+- Dynamic Image-to-Video/Keyframes node with optional first/tail frames and exact named server input slots.
+- Dynamic Omni/Video Edit node with primary-video handling, references, Elements, named inputs and live combinedItemCap validation.
+- Dynamic Motion Control node using live model discovery.
+- Generic Kling Video Task Status alias.
+- Dynamic range/HDR UI that is only submitted when the selected live model declares support.
+- Regression tests for arbitrary server model names, live allowedValues, prompt-only I2V, named inputs, combined-item caps and CLI envelope parsing.
+
+### Changed
+- Recommended Kling video path is now server-schema-driven rather than tied to fixed Kling 4.0 model IDs or fixed Standard/Flash limits.
+- Duration can use 0 to accept the live model default.
+- Resolution, aspect ratio, audio and HDR are validated against live allowed values when supplied.
+- CLI response unwrapping now handles the official {ok,status,body} envelope and body.generations[].result polling structure.
+- Existing Kling4CLI nodes remain registered as a compatibility layer for saved workflows.
+
+### Documentation
+- README updated for v4.2.0 with dynamic video architecture, compatibility guidance, Video Editing/primary-video behavior and future-model handling.
+
+
 ## [4.1.0] — 2026-10-15
 
 Modernizes the Kling image stack and prepares the fork for future server-advertised image generations without inventing an unreleased Image 4.0 API.
