@@ -2,7 +2,7 @@
 
 A direct Kling AI integration for ComfyUI with:
 
-- **Kling 4.0 video** through Kling's official OAuth CLI/MCP transport
+- **schema-driven Kling video** through Kling's official OAuth CLI/MCP transport, including current Kling 4.x rollouts
 - **Kling Image 3.0 / Image 3.0 Omni / Image O1**
 - **dynamic image-model discovery** for future Kling image releases
 - **Kling 3.0 Full REST** support using the current single API key
@@ -16,7 +16,7 @@ Repository: https://github.com/maglat/ComfyUI-Kling-Direct
 
 ## Current model status
 
-As of **2026-10-15** the public Kling product/API split is:
+As of **2026-10-17** the public Kling product/API split is:
 
 | Area | Model | This fork |
 |---|---|---|
@@ -70,14 +70,14 @@ This fork currently supports **three Kling authentication generations** because 
 
 | Nodes | Authentication |
 |---|---|
-| Kling 4.0 video | official Kling CLI OAuth |
+| Modern Kling Video CLI | official Kling CLI OAuth |
 | Modern Kling Image CLI | official Kling CLI OAuth |
 | Kling 3.0 Full REST | single `KLING_API_KEY` |
 | Original legacy nodes | Access Key + Secret Key |
 
 ## Official Kling CLI / MCP
 
-Required for Kling 4.0 and the dynamic modern Image nodes.
+Required for the modern dynamic Kling Video and Kling Image nodes.
 
 Node.js 18+ is required.
 
