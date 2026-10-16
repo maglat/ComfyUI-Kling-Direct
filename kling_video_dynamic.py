@@ -16,6 +16,7 @@ from typing import Any, Dict, Iterable, List, Optional, Sequence, Tuple
 try:
     from .kling4_cli import (
         Kling4CLIError,
+        Kling4CLI_TaskStatus,
         _append_advanced_args,
         _available_models,
         _declared_arguments,
@@ -32,6 +33,7 @@ try:
 except ImportError:
     from kling4_cli import (
         Kling4CLIError,
+        Kling4CLI_TaskStatus,
         _append_advanced_args,
         _available_models,
         _declared_arguments,
@@ -815,6 +817,7 @@ class KlingVideoCLI_MotionControl:
 
 NODE_CLASS_MAPPINGS = {
     "KlingVideoCLI_Capabilities": KlingVideoCLI_Capabilities,
+    "KlingVideoCLI_TaskStatus": Kling4CLI_TaskStatus,
     "KlingVideoCLI_TextToVideo": KlingVideoCLI_TextToVideo,
     "KlingVideoCLI_ImageToVideo": KlingVideoCLI_ImageToVideo,
     "KlingVideoCLI_OmniReference": KlingVideoCLI_OmniReference,
@@ -823,6 +826,7 @@ NODE_CLASS_MAPPINGS = {
 
 NODE_DISPLAY_NAME_MAPPINGS = {
     "KlingVideoCLI_Capabilities": "Kling Video - Models & Capabilities (Official CLI)",
+    "KlingVideoCLI_TaskStatus": "Kling Video - Task Status (Official CLI)",
     "KlingVideoCLI_TextToVideo": "Kling Video - Text to Video (Dynamic CLI)",
     "KlingVideoCLI_ImageToVideo": "Kling Video - Image to Video / Keyframes (Dynamic CLI)",
     "KlingVideoCLI_OmniReference": "Kling Video - Omni / Video Edit (Dynamic CLI)",
