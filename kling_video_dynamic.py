@@ -92,9 +92,9 @@ def _match_allowed_value(value: Any, allowed: Sequence[str]) -> str:
         return lower[key]
 
     aliases = {
-        "on": ("true", "1", "yes", "enabled"),
+        "on": ("true", "1", "yes", "enabled", "native"),
         "off": ("false", "0", "no", "disabled"),
-        "true": ("on", "1", "yes", "enabled"),
+        "true": ("on", "1", "yes", "enabled", "native"),
         "false": ("off", "0", "no", "disabled"),
         "sdr": ("standard",),
         "hdr": ("high",),
