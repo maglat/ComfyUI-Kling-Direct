@@ -274,6 +274,23 @@ def _validate_required_inputs(spec: Dict[str, Any], used: set[str]) -> None:
         )
 
 
+def _mark_convenience_inputs(
+    spec: Dict[str, Any], used: set[str], media_kind: str, count: int
+) -> set[str]:
+    """Account for CLI --image/--video convenience flags during required-slot validation."""
+    marked = set(used)
+    if count <= 0:
+        return marked
+    token = media_kind.lower()
+    candidates = [
+        name for name in _declared_inputs(spec)
+        if name not in marked and token in name.lower()
+    ]
+    for name in candidates[:count]:
+        marked.add(name)
+    return marked
+
+
 def _resolve_slot(
     spec: Dict[str, Any],
     candidates: Sequence[str],
@@ -693,7 +710,16 @@ class KlingVideoCLI_OmniReference:
                     require=True, label="elements"
                 )
 
-            _validate_required_inputs(spec, used)
+            validation_used = _mark_convenience_inputs(
+                spec, used, "image", len(images)
+            )
+            validation_used = _mark_convenience_inputs(
+                spec,
+                validation_used,
+                "video",
+                len(videos) + (1 if primary and not primary_via_named_slot else 0),
+            )
+            _validate_required_inputs(spec, validation_used)
             _validate_combined_cap(
                 spec,
                 used_input_names=used,
