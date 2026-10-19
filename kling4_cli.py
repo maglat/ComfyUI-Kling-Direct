@@ -33,6 +33,7 @@ KLING4_MODELS = [KLING4_STANDARD, KLING4_FLASH]
 ASPECT_RATIOS = ["auto", "21:9", "16:9", "1:1", "9:16"]
 RESOLUTIONS = ["auto", "720p", "1080p", "4k"]
 AUDIO_MODES = ["auto", "on", "off"]
+MIN_KLING_CLI_VERSION = "0.2.3"
 
 _SUCCESS = {"completed", "partial_completed", "succeed", "succeeded", "success"}
 _FAILED = {"failed", "error", "cancelled", "canceled"}
@@ -262,6 +263,71 @@ def _append_if_declared(
     return True
 
 
+def _append_schema_prompt(
+    cmd: List[str],
+    spec: Dict[str, Any],
+    prompt: Optional[str],
+    *,
+    positional_fallback: bool = True,
+) -> bool:
+    """Respect CLI 0.2.3's distinction between omitted and explicit-empty prompt.
+
+    If the live model declares a prompt argument, a required prompt is always
+    passed explicitly with --prompt, including an empty string. Optional empty
+    prompts are omitted so the server can apply its default behavior.
+    """
+    arguments = _declared_arguments(spec)
+    name = _find_declared_name(arguments.keys(), ["prompt"])
+    value = "" if prompt is None else str(prompt)
+
+    if name:
+        row = arguments[name]
+        required = bool(row.get("required"))
+        if value != "" or required:
+            cmd.extend([_flag_for_argument(name), value])
+            return True
+        return False
+
+    if positional_fallback and value.strip():
+        cmd.append(value.strip())
+        return True
+    return False
+
+
+def _parse_elements_json(elements_json: str) -> List[Dict[str, Any]]:
+    """Parse Elements and validate CLI 0.2.3 binding objects.
+
+    The official guidance now binds persistent Elements with id, bindName and
+    type. Keep non-id future payloads pass-through compatible, but when an
+    object is an Element binding (contains id), require the complete triplet.
+    """
+    raw = (elements_json or "").strip()
+    if not raw:
+        return []
+    try:
+        value = json.loads(raw)
+    except json.JSONDecodeError as exc:
+        raise ValueError("elements_json must be valid JSON: %s" % exc) from None
+    if not isinstance(value, list):
+        raise ValueError("elements_json must be a JSON array.")
+
+    for index, item in enumerate(value, 1):
+        if not isinstance(item, dict):
+            raise ValueError("elements_json item %d must be an object." % index)
+        if "id" in item:
+            missing = [
+                key for key in ("id", "bindName", "type")
+                if not str(item.get(key, "")).strip()
+            ]
+            if missing:
+                raise ValueError(
+                    "Element binding %d is missing %s. Kling CLI 0.2.3 "
+                    "documents Element bindings as {id, bindName, type}."
+                    % (index, ", ".join(missing))
+                )
+    return value
+
+
 def _append_advanced_args(cmd: List[str], raw: str) -> None:
     raw = (raw or "").strip()
     if not raw:
@@ -414,16 +480,7 @@ def _add_common_video_args(
 
 
 def _element_count(elements_json: str) -> int:
-    raw = (elements_json or "").strip()
-    if not raw:
-        return 0
-    try:
-        value = json.loads(raw)
-    except json.JSONDecodeError as exc:
-        raise ValueError("elements_json must be valid JSON: %s" % exc) from None
-    if not isinstance(value, list):
-        raise ValueError("elements_json must be a JSON array.")
-    return len(value)
+    return len(_parse_elements_json(elements_json))
 
 
 class Kling4CLI_Status:
@@ -441,7 +498,7 @@ class Kling4CLI_Status:
         if not exe:
             return (
                 False,
-                "Official Kling CLI is not installed. Install @klingai/cli-global.",
+                "Official Kling CLI is not installed. Install/upgrade @klingai/cli-global (>= %s)." % MIN_KLING_CLI_VERSION,
                 "{}",
             )
         try:
