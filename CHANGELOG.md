@@ -6,6 +6,29 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [4.2.1] — 2026-10-19
+
+Synchronizes the modern CLI/MCP nodes with Kling's official CLI 0.2.3 behavior published on 2026-10-19.
+
+### Added
+- Dynamic Omni standalone audio references through repeated official CLI `--audio` flags.
+- Live audio-slot capacity validation before Omni upload/submission.
+- Exact `named_inputs_json` / `--input slot=value` support for dynamic Image-to-Image.
+- Shared schema-aware prompt helper that distinguishes omitted prompts from explicit `--prompt ""`.
+- Shared Element binding validation for the official `id + bindName + type` shape.
+
+### Changed
+- Dynamic Image-to-Video, Motion Control and Image-to-Image now honor the CLI 0.2.3 omitted-vs-empty prompt distinction.
+- Image-to-Image rejects mixing convenience `--image` inputs with exact `--input` mappings, matching CLI 0.2.3.
+- Image-to-Image validates required live input slots before paid submission.
+- Omni image/video/audio convenience references are validated against live declared media slots.
+- Documentation now expects Kling CLI 0.2.3+ for the modern dynamic nodes.
+
+### Compatibility
+- Existing Kling 4 compatibility nodes, Kling 3.0 REST nodes and legacy workflows remain registered.
+- No public Kling 4 REST endpoint or unreleased Image 4.0 model is hard-coded.
+
+
 ## [4.2.0] — 2026-10-17
 
 Adds a schema-driven Kling Video CLI/MCP layer so current Kling 4.x and future server-advertised video models no longer depend on guessed or hard-coded model IDs.
