@@ -659,7 +659,7 @@ class KlingVideoCLI_OmniReference:
                     {
                         "default": "",
                         "multiline": True,
-                        "tooltip": "Optional Elements JSON array supported by the selected live model.",
+                        "tooltip": "Optional Elements JSON. Persistent Element bindings should use id + bindName + type (Kling CLI 0.2.3).",
                     },
                 ),
                 "named_inputs_json": (
