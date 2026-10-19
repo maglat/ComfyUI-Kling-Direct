@@ -541,9 +541,9 @@ class KlingImageCLI_ImageToImage:
                     label="elements",
                 )
 
-            _append_schema_prompt(cmd, spec, prompt)
             _append_advanced_args(cmd, advanced_cli_args)
             cmd += ["--poll", str(int(poll_seconds)), "--quiet"]
+            _append_schema_prompt(cmd, spec, prompt)
             result = _run_cli(cmd, timeout=int(poll_seconds) + 120)
         return _finish_images(result)
 
