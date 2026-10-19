@@ -8,7 +8,7 @@ A direct Kling AI integration for ComfyUI with:
 - **Kling 3.0 Full REST** support using the current single API key
 - the original Kling-Direct legacy nodes for existing workflows
 
-Current fork version: **4.2.0**
+Current fork version: **4.2.1**
 
 Repository: https://github.com/maglat/ComfyUI-Kling-Direct
 
@@ -16,7 +16,7 @@ Repository: https://github.com/maglat/ComfyUI-Kling-Direct
 
 ## Current model status
 
-As of **2026-10-17** the public Kling product/API split is:
+As of **2026-10-19** the public Kling product/API split is:
 
 | Area | Model | This fork |
 |---|---|---|
@@ -84,9 +84,9 @@ Node.js 18+ is required.
 ```bash
 node --version
 
-npm i -g @klingai/cli-global --registry=https://registry.npmjs.org
+npm i -g @klingai/cli-global@latest --registry=https://registry.npmjs.org
 
-kling --version
+kling --version   # v4.2.1 expects Kling CLI >= 0.2.3
 kling login
 kling who_am_i
 ```
@@ -99,7 +99,9 @@ The most important diagnostic command is:
 kling who_am_i
 ```
 
-It returns the models and arguments currently enabled for the signed-in Kling account.
+It returns the models, arguments, allowed values, input slots and combined-item limits currently enabled for the signed-in Kling account.
+
+**Kling CLI 0.2.3 or newer is recommended/expected for the modern dynamic nodes.** The official 0.2.3 behavior distinguishes an omitted prompt from an explicitly empty prompt, exposes generation-command help from `who_am_i`, and documents standalone Omni audio references.
 
 ## Kling 3.0 Full REST API
 
@@ -121,7 +123,7 @@ The environment variable avoids storing the key inside workflow JSON.
 
 # Kling Video - dynamic CLI/MCP layer
 
-Version **4.2.0** adds the recommended schema-driven video layer.
+Version **4.2.0** added the schema-driven video layer; **v4.2.1** synchronizes it with official Kling CLI 0.2.3 behavior.
 
 The official Kling CLI/MCP backend is treated as the source of truth. The new nodes do **not** assume a fixed Kling 4.0 model ID such as `kling-video-v4_0`. Instead, they read the model names, arguments, allowed values, input slots and combined-item limits returned by:
 
@@ -208,6 +210,9 @@ It supports:
 - up to eight additional ComfyUI keyframe sockets
 - exact named live input slots through `named_inputs_json`
 - prompt-only operation when the selected live model declares no required image input
+- correct CLI 0.2.3 distinction between an omitted prompt and explicit `--prompt ""`
+
+If the live model declares `prompt` as required and the ComfyUI prompt field is empty, v4.2.1 sends an explicit empty prompt. If prompt is optional and empty, it is omitted so the server can apply its default behavior.
 
 Example named input:
 
@@ -227,7 +232,8 @@ This provides an escape hatch for new keyframe/input layouts without a custom-no
 
 - up to 10 local ComfyUI reference-image sockets
 - additional video references
-- Elements JSON
+- standalone audio references through repeated official CLI `--audio`
+- Elements JSON using the current persistent-Element binding shape `id + bindName + type`
 - a `primary_video` field for base/source/primary-video workflows
 - exact server-defined inputs through `named_inputs_json`
 - duration / aspect / resolution / audio / dynamic-range controls when declared
@@ -236,7 +242,7 @@ This provides an escape hatch for new keyframe/input layouts without a custom-no
 
 If the selected model declares a named primary/base/source-video slot, `primary_video` is mapped to that slot. Otherwise it is passed as a normal official CLI video reference.
 
-Standalone audio-reference behavior is **not hard-coded** into the new dynamic Omni node. If Kling adds a dedicated audio input later, it can be passed through a server-declared named input instead of us inventing a permanent flag.
+Standalone audio references are now officially documented by Kling CLI 0.2.3. The node exposes an `audio_refs` multiline field and sends one `--audio` per entry. Before submission it verifies that the selected live model actually declares enough `audio_*` slots. Unsupported audio references therefore fail before upload/generation.
 
 ## Combined reference limits
 
@@ -418,7 +424,25 @@ Supports:
 - resolution
 - aspect ratio
 - optional Elements JSON
+- exact live input-slot mapping through `named_inputs_json`
+- correct omitted-vs-explicit-empty prompt handling from CLI 0.2.3
 - advanced CLI arguments
+
+For Image-to-Image, `refer_image_*` uses the CLI convenience `--image` mapping. `named_inputs_json` uses exact `--input slot=value` mapping. CLI 0.2.3 does not allow mixing those two input modes in one request, so the node rejects that combination before submission.
+
+Persistent Element bindings should use the official 0.2.3 structure:
+
+```json
+[
+  {
+    "id": "ELEMENT_ID",
+    "bindName": "hero",
+    "type": "character"
+  }
+]
+```
+
+If an Element object contains an `id`, the modern nodes now require `id`, `bindName` and `type` together.
 
 Reference images are written to a temporary directory and passed to the official CLI as local files. The CLI performs its supported upload flow. The temporary files are deleted automatically after the operation.
 
@@ -566,6 +590,7 @@ Important test files added by this fork include:
 ```text
 tests/test_kling3_full.py
 tests/test_kling4_cli.py
+tests/test_kling_video_dynamic.py
 tests/test_kling_image_modern.py
 ```
 
@@ -575,12 +600,14 @@ The modern integration tests mock task submission and do not intentionally spend
 
 # Troubleshooting
 
-## Kling 4.0 or Image CLI nodes say the CLI is missing
+## Dynamic Video/Image CLI nodes say the CLI is missing or too old
 
 ```bash
-npm i -g @klingai/cli-global --registry=https://registry.npmjs.org
+npm i -g @klingai/cli-global@latest --registry=https://registry.npmjs.org
 kling --version
 ```
+
+Use **Kling CLI 0.2.3 or newer** for the v4.2.1 dynamic nodes.
 
 ## CLI exists but the node says authentication failed
 
