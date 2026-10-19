@@ -18,6 +18,7 @@ try:
         Kling4CLIError,
         Kling4CLI_TaskStatus,
         _append_advanced_args,
+        _append_schema_prompt,
         _available_models,
         _declared_arguments,
         _declared_inputs,
@@ -26,6 +27,7 @@ try:
         _finish_video,
         _flag_for_argument,
         _model_spec,
+        _parse_elements_json,
         _run_cli,
         _save_image,
         _who_am_i,
@@ -35,6 +37,7 @@ except ImportError:
         Kling4CLIError,
         Kling4CLI_TaskStatus,
         _append_advanced_args,
+        _append_schema_prompt,
         _available_models,
         _declared_arguments,
         _declared_inputs,
@@ -43,6 +46,7 @@ except ImportError:
         _finish_video,
         _flag_for_argument,
         _model_spec,
+        _parse_elements_json,
         _run_cli,
         _save_image,
         _who_am_i,
@@ -309,6 +313,27 @@ def _resolve_slot(
     return None
 
 
+def _validate_convenience_media_count(
+    spec: Dict[str, Any], media_kind: str, count: int
+) -> None:
+    if count <= 0:
+        return
+    token = media_kind.lower()
+    slots = [name for name in _declared_inputs(spec) if token in name.lower()]
+    if not slots:
+        raise Kling4CLIError(
+            "The live %s schema declares no %s input slots, but %d %s "
+            "reference(s) were supplied. No paid request was submitted."
+            % (spec.get("model"), media_kind, count, media_kind)
+        )
+    if count > len(slots):
+        raise Kling4CLIError(
+            "The live %s schema declares %d %s input slot(s), but %d "
+            "reference(s) were supplied. No paid request was submitted."
+            % (spec.get("model"), len(slots), media_kind, count)
+        )
+
+
 def _combined_item_cap(spec: Dict[str, Any]) -> Optional[Dict[str, Any]]:
     cap = spec.get("combinedItemCap") or spec.get("combined_item_cap")
     return cap if isinstance(cap, dict) else None
@@ -320,6 +345,7 @@ def _validate_combined_cap(
     used_input_names: Iterable[str] = (),
     convenience_images: int = 0,
     convenience_videos: int = 0,
+    convenience_audio: int = 0,
     argument_arrays: Optional[Dict[str, int]] = None,
 ) -> None:
     cap = _combined_item_cap(spec)
@@ -343,6 +369,8 @@ def _validate_combined_cap(
         total += int(convenience_images)
     if any("video" in p for p in lower_prefixes):
         total += int(convenience_videos)
+    if any("audio" in p for p in lower_prefixes):
+        total += int(convenience_audio)
 
     for name, count in (argument_arrays or {}).items():
         if name in array_names:
@@ -577,8 +605,7 @@ class KlingVideoCLI_ImageToVideo:
             )
             _append_advanced_args(cmd, advanced_cli_args)
             cmd += ["--poll", str(int(poll_seconds)), "--quiet"]
-            if (prompt or "").strip():
-                cmd.append(prompt.strip())
+            _append_schema_prompt(cmd, spec, prompt)
             result = _run_cli(cmd, timeout=int(poll_seconds) + 120)
 
         return _finish_video(result)
@@ -619,12 +646,20 @@ class KlingVideoCLI_OmniReference:
                         "tooltip": "Additional public video URLs or local paths, one per line.",
                     },
                 ),
+                "audio_refs": (
+                    "STRING",
+                    {
+                        "default": "",
+                        "multiline": True,
+                        "tooltip": "Standalone audio references (URL or local path), one per line. Sent with official CLI --audio and only valid when the live model declares audio input slots.",
+                    },
+                ),
                 "elements_json": (
                     "STRING",
                     {
                         "default": "",
                         "multiline": True,
-                        "tooltip": "Optional Elements JSON array supported by the selected live model.",
+                        "tooltip": "Optional Elements JSON. Persistent Element bindings should use id + bindName + type (Kling CLI 0.2.3).",
                     },
                 ),
                 "named_inputs_json": (
@@ -649,7 +684,7 @@ class KlingVideoCLI_OmniReference:
     def generate(
         self, prompt, model, duration, aspect_ratio, resolution, audio,
         dynamic_range, keep_original_sound, primary_video, video_refs,
-        elements_json, named_inputs_json, poll_seconds, advanced_cli_args,
+        audio_refs, elements_json, named_inputs_json, poll_seconds, advanced_cli_args,
         refer_image_1=None, refer_image_2=None, refer_image_3=None,
         refer_image_4=None, refer_image_5=None, refer_image_6=None,
         refer_image_7=None, refer_image_8=None, refer_image_9=None,
@@ -669,7 +704,11 @@ class KlingVideoCLI_OmniReference:
         ]
         images = [image for image in images if image is not None]
         videos = [x.strip() for x in (video_refs or "").splitlines() if x.strip()]
-        elements_count = _element_count(elements_json)
+        audios = [x.strip() for x in (audio_refs or "").splitlines() if x.strip()]
+        _validate_convenience_media_count(spec, "image", len(images))
+        _validate_convenience_media_count(spec, "audio", len(audios))
+        parsed_elements = _parse_elements_json(elements_json)
+        elements_count = len(parsed_elements)
 
         with tempfile.TemporaryDirectory(prefix="kling-video-omni-") as tmp:
             root = Path(tmp)
@@ -691,6 +730,13 @@ class KlingVideoCLI_OmniReference:
                 else:
                     cmd += ["--video", primary]
 
+            convenience_video_count = len(videos) + (
+                1 if primary and not primary_via_named_slot else 0
+            )
+            _validate_convenience_media_count(
+                spec, "video", convenience_video_count
+            )
+
             for index, image in enumerate(images, 1):
                 path = root / ("reference_%02d.png" % index)
                 _save_image(image, path)
@@ -699,13 +745,10 @@ class KlingVideoCLI_OmniReference:
             for ref in videos:
                 cmd += ["--video", ref]
 
-            if (elements_json or "").strip():
-                try:
-                    parsed_elements = json.loads(elements_json)
-                except json.JSONDecodeError as exc:
-                    raise ValueError("elements_json must be valid JSON: %s" % exc) from None
-                if not isinstance(parsed_elements, list):
-                    raise ValueError("elements_json must be a JSON array.")
+            for ref in audios:
+                cmd += ["--audio", ref]
+
+            if parsed_elements:
                 _append_checked_argument(
                     cmd, spec, ["elements"],
                     json.dumps(parsed_elements, separators=(",", ":")),
@@ -719,14 +762,18 @@ class KlingVideoCLI_OmniReference:
                 spec,
                 validation_used,
                 "video",
-                len(videos) + (1 if primary and not primary_via_named_slot else 0),
+                convenience_video_count,
+            )
+            validation_used = _mark_convenience_inputs(
+                spec, validation_used, "audio", len(audios)
             )
             _validate_required_inputs(spec, validation_used)
             _validate_combined_cap(
                 spec,
                 used_input_names=used,
                 convenience_images=len(images),
-                convenience_videos=len(videos) + (1 if primary and not primary_via_named_slot else 0),
+                convenience_videos=convenience_video_count,
+                convenience_audio=len(audios),
                 argument_arrays={"elements": elements_count},
             )
 
@@ -790,7 +837,7 @@ class KlingVideoCLI_MotionControl:
         poll_seconds, advanced_cli_args
     ):
         model = _require_model(model)
-        _model_spec("motion_control", model, _who_am_i())
+        spec = _model_spec("motion_control", model, _who_am_i())
 
         video = (motion_video or "").strip()
         motion = (motion_id or "").strip()
@@ -806,10 +853,9 @@ class KlingVideoCLI_MotionControl:
             else:
                 cmd += ["--motionId", motion]
 
+            _append_schema_prompt(cmd, spec, prompt)
             _append_advanced_args(cmd, advanced_cli_args)
             cmd += ["--poll", str(int(poll_seconds)), "--quiet"]
-            if (prompt or "").strip():
-                cmd.append(prompt.strip())
             result = _run_cli(cmd, timeout=int(poll_seconds) + 120)
 
         return _finish_video(result)

@@ -36,12 +36,15 @@ try:
         _FAILED,
         _SUCCESS,
         _append_advanced_args,
+        _append_schema_prompt,
         _available_models,
         _declared_arguments,
+        _declared_inputs,
         _find_declared_name,
         _flag_for_argument,
         _generation_id,
         _model_spec,
+        _parse_elements_json,
         _run_cli,
         _save_image,
         _status,
@@ -64,12 +67,15 @@ except ImportError:
         _FAILED,
         _SUCCESS,
         _append_advanced_args,
+        _append_schema_prompt,
         _available_models,
         _declared_arguments,
+        _declared_inputs,
         _find_declared_name,
         _flag_for_argument,
         _generation_id,
         _model_spec,
+        _parse_elements_json,
         _run_cli,
         _save_image,
         _status,
@@ -238,6 +244,81 @@ def _add_image_generation_arguments(
         )
 
 
+def _parse_named_inputs(raw: str) -> Dict[str, str]:
+    raw = (raw or "").strip()
+    if not raw:
+        return {}
+    try:
+        value = json.loads(raw)
+    except json.JSONDecodeError as exc:
+        raise ValueError("named_inputs_json must be valid JSON: %s" % exc) from None
+    if not isinstance(value, dict):
+        raise ValueError(
+            'named_inputs_json must be a JSON object like '
+            '{"slot_name":"public URL or local path"}.'
+        )
+    out: Dict[str, str] = {}
+    for key, item in value.items():
+        name = str(key).strip()
+        media = str(item).strip()
+        if not name or not media:
+            raise ValueError("named_inputs_json cannot contain empty names/values.")
+        out[name] = media
+    return out
+
+
+def _append_exact_image_inputs(
+    cmd: List[str], spec: Dict[str, Any], named: Dict[str, str]
+) -> None:
+    declared = _declared_inputs(spec)
+    unknown = [name for name in named if name not in declared]
+    if unknown:
+        raise Kling4CLIError(
+            "Input slot(s) %s are not declared by live model %s. "
+            "Declared inputs: %s. No paid request was submitted."
+            % (unknown, spec.get("model"), declared)
+        )
+
+    missing = [
+        str(row.get("name"))
+        for row in spec.get("inputs") or []
+        if isinstance(row, dict)
+        and row.get("name")
+        and bool(row.get("required"))
+        and str(row.get("name")) not in named
+    ]
+    if missing:
+        raise Kling4CLIError(
+            "The live %s schema requires input slot(s) %s. "
+            "No paid request was submitted." % (spec.get("model"), missing)
+        )
+
+    for name, media in named.items():
+        cmd += ["--input", "%s=%s" % (name, media)]
+
+
+def _validate_convenience_image_count(
+    spec: Dict[str, Any], image_count: int
+) -> None:
+    rows = [
+        row for row in (spec.get("inputs") or [])
+        if isinstance(row, dict) and row.get("name")
+    ]
+    required = sum(1 for row in rows if bool(row.get("required")))
+    if image_count < required:
+        raise Kling4CLIError(
+            "The live %s schema requires %d image input slot(s), but only %d "
+            "reference image(s) were supplied. No paid request was submitted."
+            % (spec.get("model"), required, image_count)
+        )
+    if rows and image_count > len(rows):
+        raise Kling4CLIError(
+            "The live %s schema declares %d image input slot(s), but %d "
+            "reference image(s) were supplied. No paid request was submitted."
+            % (spec.get("model"), len(rows), image_count)
+        )
+
+
 class KlingImageCLI_Capabilities:
     @classmethod
     def INPUT_TYPES(cls):
@@ -363,7 +444,15 @@ class KlingImageCLI_ImageToImage:
                     {
                         "default": "",
                         "multiline": True,
-                        "tooltip": "Optional JSON array. Only submitted when the live model declares elements.",
+                        "tooltip": "Optional JSON array. Persistent Element bindings should use id + bindName + type (CLI 0.2.3).",
+                    },
+                ),
+                "named_inputs_json": (
+                    "STRING",
+                    {
+                        "default": "",
+                        "multiline": True,
+                        "tooltip": "Exact live input slots mapped to URL/local path. Per CLI 0.2.3, do not combine with refer_image_* inputs.",
                     },
                 ),
                 "poll_seconds": ("INT", {"default": 300, "min": 30, "max": 1800}),
@@ -385,6 +474,7 @@ class KlingImageCLI_ImageToImage:
         resolution,
         aspect_ratio,
         elements_json,
+        named_inputs_json,
         poll_seconds,
         advanced_cli_args,
         refer_image_1=None,
@@ -398,10 +488,8 @@ class KlingImageCLI_ImageToImage:
         refer_image_9=None,
         refer_image_10=None,
     ):
-        prompt = (prompt or "").strip()
+        prompt = "" if prompt is None else str(prompt)
         model = (model or "").strip()
-        if not prompt:
-            raise ValueError("Prompt cannot be empty.")
         if not model:
             raise ValueError("Model cannot be empty.")
 
@@ -418,28 +506,32 @@ class KlingImageCLI_ImageToImage:
             refer_image_10,
         ]
         images = [image for image in images if image is not None]
-        if not images:
-            raise ValueError("Image-to-Image requires at least one reference image.")
+        named = _parse_named_inputs(named_inputs_json)
+        if images and named:
+            raise ValueError(
+                "Kling CLI 0.2.3 does not allow mixing repeated --image with "
+                "exact --input slots. Use refer_image_* OR named_inputs_json."
+            )
 
         spec = _model_spec("image_to_image", model, _who_am_i())
         with tempfile.TemporaryDirectory(prefix="kling-image-") as tmp:
             root = Path(tmp)
             cmd = ["image_to_image", "--model", model]
-            for i, image in enumerate(images, 1):
-                path = root / ("reference_%02d.png" % i)
-                _save_image(image, path)
-                cmd += ["--image", str(path)]
+
+            if named:
+                _append_exact_image_inputs(cmd, spec, named)
+            else:
+                _validate_convenience_image_count(spec, len(images))
+                for i, image in enumerate(images, 1):
+                    path = root / ("reference_%02d.png" % i)
+                    _save_image(image, path)
+                    cmd += ["--image", str(path)]
 
             _add_image_generation_arguments(
                 cmd, spec, image_count, resolution, aspect_ratio
             )
-            if (elements_json or "").strip():
-                try:
-                    elements = json.loads(elements_json)
-                except json.JSONDecodeError as exc:
-                    raise ValueError("elements_json must be valid JSON: %s" % exc) from None
-                if not isinstance(elements, list):
-                    raise ValueError("elements_json must be a JSON array.")
+            elements = _parse_elements_json(elements_json)
+            if elements:
                 _append_checked_argument(
                     cmd,
                     spec,
@@ -450,7 +542,8 @@ class KlingImageCLI_ImageToImage:
                 )
 
             _append_advanced_args(cmd, advanced_cli_args)
-            cmd += ["--poll", str(int(poll_seconds)), "--quiet", prompt]
+            cmd += ["--poll", str(int(poll_seconds)), "--quiet"]
+            _append_schema_prompt(cmd, spec, prompt)
             result = _run_cli(cmd, timeout=int(poll_seconds) + 120)
         return _finish_images(result)
 
