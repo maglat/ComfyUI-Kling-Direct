@@ -55,9 +55,9 @@ def _kling_executable() -> str:
     exe = shutil.which("kling")
     if not exe:
         raise Kling4CLIError(
-            "Official Kling CLI not found. On the ComfyUI server run: "
-            "npm i -g @klingai/cli-global --registry=https://registry.npmjs.org "
-            "and then: kling login"
+            "Official Kling CLI not found. On the ComfyUI server install/upgrade "
+            "@klingai/cli-global (>= %s), then run kling login."
+            % MIN_KLING_CLI_VERSION
         )
     return exe
 
