@@ -252,7 +252,8 @@ def test_omni_combined_item_cap_comes_from_live_schema(monkeypatch):
             False,
             "",
             "",
-            '[{"id":"e1"}]',
+            "",
+            '[{"id":"e1","bindName":"hero","type":"character"}]',
             "",
             300,
             "",
@@ -293,3 +294,162 @@ def test_motion_control_accepts_any_server_advertised_model(monkeypatch):
         300,
         "",
     ) == ("motion-ok",)
+
+
+
+def test_i2v_required_empty_prompt_is_sent_explicitly(monkeypatch):
+    spec = {
+        "model": "i2v-empty-prompt",
+        "arguments": [{"name": "prompt", "required": True}],
+        "inputs": [],
+    }
+    monkeypatch.setattr(
+        kv,
+        "_who_am_i",
+        lambda: {"availableModels": {"image_to_video": [spec]}},
+    )
+    captured = {}
+
+    def fake_run(args, timeout=60):
+        captured["args"] = list(args)
+        return {
+            "generationId": "gp",
+            "status": "COMPLETED",
+            "works": [{"contentType": "video", "url": "https://example.com/p.mp4"}],
+        }
+
+    monkeypatch.setattr(kv, "_run_cli", fake_run)
+    monkeypatch.setattr(kv, "_finish_video", lambda payload: ("ok",))
+
+    assert kv.KlingVideoCLI_ImageToVideo().generate(
+        "",
+        "i2v-empty-prompt",
+        0,
+        "auto",
+        "auto",
+        "auto",
+        "",
+        300,
+        "",
+    ) == ("ok",)
+    idx = captured["args"].index("--prompt")
+    assert captured["args"][idx + 1] == ""
+
+
+def test_i2v_optional_empty_prompt_is_omitted(monkeypatch):
+    spec = {
+        "model": "i2v-optional-prompt",
+        "arguments": [{"name": "prompt", "required": False}],
+        "inputs": [],
+    }
+    monkeypatch.setattr(
+        kv,
+        "_who_am_i",
+        lambda: {"availableModels": {"image_to_video": [spec]}},
+    )
+    captured = {}
+    monkeypatch.setattr(
+        kv,
+        "_run_cli",
+        lambda args, timeout=60: captured.setdefault("result", list(args)) or {},
+    )
+    monkeypatch.setattr(kv, "_finish_video", lambda payload: ("ok",))
+
+    assert kv.KlingVideoCLI_ImageToVideo().generate(
+        "",
+        "i2v-optional-prompt",
+        0,
+        "auto",
+        "auto",
+        "auto",
+        "",
+        300,
+        "",
+    ) == ("ok",)
+    assert "--prompt" not in captured["result"]
+
+
+def test_omni_audio_reference_uses_official_audio_flag(monkeypatch):
+    spec = {
+        "model": "omni-audio-model",
+        "arguments": [],
+        "inputs": [{"name": "audio_1", "required": True}],
+    }
+    monkeypatch.setattr(
+        kv,
+        "_who_am_i",
+        lambda: {"availableModels": {"omni_ref_video": [spec]}},
+    )
+    captured = {}
+
+    def fake_run(args, timeout=60):
+        captured["args"] = list(args)
+        return {
+            "generationId": "ga",
+            "status": "COMPLETED",
+            "works": [{"contentType": "video", "url": "https://example.com/a.mp4"}],
+        }
+
+    monkeypatch.setattr(kv, "_run_cli", fake_run)
+    monkeypatch.setattr(kv, "_finish_video", lambda payload: ("ok",))
+
+    assert kv.KlingVideoCLI_OmniReference().generate(
+        "speak with the reference audio",
+        "omni-audio-model",
+        0,
+        "auto",
+        "auto",
+        "auto",
+        "auto",
+        False,
+        "",
+        "",
+        "https://example.com/voice.mp3",
+        "",
+        "",
+        300,
+        "",
+    ) == ("ok",)
+    assert "--audio" in captured["args"]
+    assert "https://example.com/voice.mp3" in captured["args"]
+
+
+def test_omni_audio_reference_rejected_when_live_model_has_no_audio_slot(monkeypatch):
+    spec = {
+        "model": "omni-no-audio",
+        "arguments": [],
+        "inputs": [{"name": "image_1", "required": False}],
+    }
+    monkeypatch.setattr(
+        kv,
+        "_who_am_i",
+        lambda: {"availableModels": {"omni_ref_video": [spec]}},
+    )
+    with pytest.raises(kv.Kling4CLIError, match="no audio input slots"):
+        kv.KlingVideoCLI_OmniReference().generate(
+            "x",
+            "omni-no-audio",
+            0,
+            "auto",
+            "auto",
+            "auto",
+            "auto",
+            False,
+            "",
+            "",
+            "https://example.com/voice.mp3",
+            "",
+            "",
+            300,
+            "",
+        )
+
+
+def test_element_binding_requires_id_bindname_and_type():
+    with pytest.raises(ValueError, match="bindName"):
+        k4._parse_elements_json('[{"id":"123"}]')
+
+    parsed = k4._parse_elements_json(
+        '[{"id":"123","bindName":"hero","type":"character"}]'
+    )
+    assert parsed[0]["type"] == "character"
