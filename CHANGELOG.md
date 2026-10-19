@@ -6,6 +6,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [4.2.2] — 2026-10-19
+
+Bugfixes found while running the dynamic video nodes end-to-end against Kling CLI 0.2.3 on a headless ComfyUI server (root systemd service).
+
+### Fixed
+- `_run_cli` no longer deadlocks on large CLI output: stdout/stderr are drained concurrently by a helper thread while the poll loop keeps enforcing the timeout and interrupt checks. Previously any output larger than the 64 KiB Linux pipe buffer — `kling who_am_i` returns ~65 KB — blocked the child on write, so the call always died with `Kling CLI timed out after 45s` and an empty stderr.
+- `_available_models` normalizes per-command entries. Kling CLI 0.2.3 returns one object per command (`{"defaultModel": ..., "models": [...]}`), but the dynamic nodes expected a flat list of model dicts — iterating the object yielded its keys, so every model lookup failed with `Model '...' is not available ... Live models: none` regardless of the model name. Affects `KlingVideoCLI_TextToVideo`, `KlingVideoCLI_ImageToVideo`, Omni/Motion Control and `KlingVideoCLI_Capabilities`.
+- `audio` is treated as an optional argument: models whose live schema does not declare `audio`/`enableAudio` (e.g. `kling-video-v4_0`, which always generates native audio) skip the flag instead of aborting with `The live Kling schema ... does not expose 'audio'`. `duration`, `aspect_ratio` and `resolution` remain strictly validated.
+
+
 ## [4.2.1] — 2026-10-19
 
 Synchronizes the modern CLI/MCP nodes with Kling's official CLI 0.2.3 behavior published on 2026-10-19.

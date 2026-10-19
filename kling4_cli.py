@@ -101,20 +101,36 @@ def _run_cli(args: Sequence[str], timeout: int = 60) -> Dict[str, Any]:
             "Failed to start Kling CLI: %s: %s" % (type(exc).__name__, exc)
         ) from None
 
-    start = time.monotonic()
-    while proc.poll() is None:
+    # communicate() must drain the pipes while the CLI runs. Output larger
+    # than the 64 KiB pipe buffer (e.g. `who_am_i`, ~65 KiB) deadlocks a
+    # poll-only reader: the child blocks on write, never exits, and the call
+    # dies at the timeout with an empty stderr.
+    import threading
+
+    result: Dict[str, Any] = {}
+
+    def _drain() -> None:
+        result["out"], result["err"] = proc.communicate()
+
+    reader = threading.Thread(target=_drain, daemon=True)
+    reader.start()
+
+    start_t = time.monotonic()
+    while reader.is_alive():
         _interrupt_check()
-        if time.monotonic() - start > timeout:
+        if time.monotonic() - start_t > timeout:
             proc.kill()
-            _, err = proc.communicate()
+            reader.join(timeout=5)
             raise TimeoutError(
                 "Kling CLI timed out after %ss. The generation may still exist. "
                 "Use Kling 4.0 Task Status if you have a generationId. stderr: %s"
-                % (timeout, (err or "")[-800:])
+                % (timeout, (result.get("err") or "")[-800:])
             )
         time.sleep(0.25)
+    reader.join(timeout=5)
 
-    out, err = proc.communicate()
+    out = result.get("out") or ""
+    err = result.get("err") or ""
     if proc.returncode != 0:
         safe_err = (err or "").strip()[-2500:]
         raise Kling4CLIError(
@@ -168,7 +184,22 @@ def _who_am_i() -> Dict[str, Any]:
 
 def _available_models(who: Dict[str, Any]) -> Dict[str, List[Dict[str, Any]]]:
     models = who.get("availableModels") or who.get("available_models") or {}
-    return models if isinstance(models, dict) else {}
+    if not isinstance(models, dict):
+        return {}
+
+    # Normalize per-command entries: Kling CLI >= 0.2.3 returns one object per
+    # command ({"defaultModel": ..., "models": [...]}), while the rest of this
+    # module expects a flat list of model dicts per command.
+    normalized: Dict[str, List[Dict[str, Any]]] = {}
+    for command, entry in models.items():
+        if isinstance(entry, dict):
+            rows = entry.get("models")
+        elif isinstance(entry, list):
+            rows = entry
+        else:
+            rows = None
+        normalized[command] = [row for row in (rows or []) if isinstance(row, dict)]
+    return normalized
 
 
 def _model_spec(

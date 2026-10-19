@@ -8,7 +8,7 @@ A direct Kling AI integration for ComfyUI with:
 - **Kling 3.0 Full REST** support using the current single API key
 - the original Kling-Direct legacy nodes for existing workflows
 
-Current fork version: **4.2.1**
+Current fork version: **4.2.2**
 
 Repository: https://github.com/maglat/ComfyUI-Kling-Direct
 

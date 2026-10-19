@@ -210,7 +210,7 @@ def _add_common_video_arguments(
         _append_checked_argument(
             cmd, spec, ["enableAudio", "enable_audio", "audio"],
             "true" if audio == "on" else "false",
-            require=True, label="audio"
+            require=False, label="audio"
         )
 
     _append_dynamic_range(cmd, spec, dynamic_range)
