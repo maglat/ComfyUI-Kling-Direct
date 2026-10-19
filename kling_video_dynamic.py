@@ -313,6 +313,27 @@ def _resolve_slot(
     return None
 
 
+def _validate_convenience_media_count(
+    spec: Dict[str, Any], media_kind: str, count: int
+) -> None:
+    if count <= 0:
+        return
+    token = media_kind.lower()
+    slots = [name for name in _declared_inputs(spec) if token in name.lower()]
+    if not slots:
+        raise Kling4CLIError(
+            "The live %s schema declares no %s input slots, but %d %s "
+            "reference(s) were supplied. No paid request was submitted."
+            % (spec.get("model"), media_kind, count, media_kind)
+        )
+    if count > len(slots):
+        raise Kling4CLIError(
+            "The live %s schema declares %d %s input slot(s), but %d "
+            "reference(s) were supplied. No paid request was submitted."
+            % (spec.get("model"), len(slots), media_kind, count)
+        )
+
+
 def _combined_item_cap(spec: Dict[str, Any]) -> Optional[Dict[str, Any]]:
     cap = spec.get("combinedItemCap") or spec.get("combined_item_cap")
     return cap if isinstance(cap, dict) else None
@@ -684,6 +705,8 @@ class KlingVideoCLI_OmniReference:
         images = [image for image in images if image is not None]
         videos = [x.strip() for x in (video_refs or "").splitlines() if x.strip()]
         audios = [x.strip() for x in (audio_refs or "").splitlines() if x.strip()]
+        _validate_convenience_media_count(spec, "image", len(images))
+        _validate_convenience_media_count(spec, "audio", len(audios))
         parsed_elements = _parse_elements_json(elements_json)
         elements_count = len(parsed_elements)
 
@@ -706,6 +729,13 @@ class KlingVideoCLI_OmniReference:
                     primary_via_named_slot = True
                 else:
                     cmd += ["--video", primary]
+
+            convenience_video_count = len(videos) + (
+                1 if primary and not primary_via_named_slot else 0
+            )
+            _validate_convenience_media_count(
+                spec, "video", convenience_video_count
+            )
 
             for index, image in enumerate(images, 1):
                 path = root / ("reference_%02d.png" % index)
@@ -732,7 +762,7 @@ class KlingVideoCLI_OmniReference:
                 spec,
                 validation_used,
                 "video",
-                len(videos) + (1 if primary and not primary_via_named_slot else 0),
+                convenience_video_count,
             )
             validation_used = _mark_convenience_inputs(
                 spec, validation_used, "audio", len(audios)
@@ -742,7 +772,7 @@ class KlingVideoCLI_OmniReference:
                 spec,
                 used_input_names=used,
                 convenience_images=len(images),
-                convenience_videos=len(videos) + (1 if primary and not primary_via_named_slot else 0),
+                convenience_videos=convenience_video_count,
                 convenience_audio=len(audios),
                 argument_arrays={"elements": elements_count},
             )
