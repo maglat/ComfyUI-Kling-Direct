@@ -6,6 +6,24 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [4.3.0] — 2026-10-26
+
+Kling Video 4.0 Early Access direct REST integration.
+
+### Added
+- Direct Bearer API-key support for `/text-to-video/kling-4.0`, `/image-to-video/kling-4.0`, and `/omni-video/kling-4.0`.
+- Kling 4.0 REST Text-to-Video with 3-30s duration, 720p/1080p and documented aspect ratios.
+- Kling 4.0 REST Image-to-Video with first/middle/last keyframes and up to 10 image inputs.
+- Kling 4.0 REST Omni Reference / Video Edit with reference images, feature videos, one base video, Elements and Voice IDs.
+- REST access check and task-status nodes reusing the existing single `KLING_API_KEY` transport and unified `/tasks` polling.
+- Local validation for Early Access prompt lengths, image dimensions/aspect ratios, reference counts and combined Omni item limits.
+- Tests for the new endpoint paths and payload shapes.
+
+### Compatibility
+- Existing Kling 3.0 REST, legacy nodes and Kling 4.x CLI/MCP nodes are unchanged.
+- The Early Access REST layer intentionally exposes no request-side audio toggle because it is not present in the supplied temporary API specification.
+
+
 ## [4.2.2] — 2026-10-19
 
 Bugfixes found while running the dynamic video nodes end-to-end against Kling CLI 0.2.3 on a headless ComfyUI server (root systemd service).
