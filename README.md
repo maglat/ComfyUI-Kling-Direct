@@ -2,13 +2,14 @@
 
 A direct Kling AI integration for ComfyUI with:
 
+- **Kling Video 4.0 Early Access REST** through the direct single API key transport
 - **schema-driven Kling video** through Kling's official OAuth CLI/MCP transport, including current Kling 4.x rollouts
 - **Kling Image 3.0 / Image 3.0 Omni / Image O1**
 - **dynamic image-model discovery** for future Kling image releases
 - **Kling 3.0 Full REST** support using the current single API key
 - the original Kling-Direct legacy nodes for existing workflows
 
-Current fork version: **4.2.2**
+Current fork version: **4.3.0 (Early Access branch)**
 
 Repository: https://github.com/maglat/ComfyUI-Kling-Direct
 
@@ -16,11 +17,11 @@ Repository: https://github.com/maglat/ComfyUI-Kling-Direct
 
 ## Current model status
 
-As of **2026-10-19** the public Kling product/API split is:
+As of **2026-10-26** the public Kling product/API split is:
 
 | Area | Model | This fork |
 |---|---|---|
-| Video | Kling 4.0 | Yes - official CLI/MCP |
+| Video | Kling 4.0 | Yes - direct Early Access REST + official CLI/MCP |
 | Video | Kling 4.0 Flash | Yes - official CLI/MCP |
 | Video | Kling 3.0 | Yes - direct REST |
 | Video | Kling 3.0 Turbo | Yes - direct REST |
@@ -70,6 +71,7 @@ This fork currently supports **three Kling authentication generations** because 
 
 | Nodes | Authentication |
 |---|---|
+| Kling 4.0 Early Access REST | single `KLING_API_KEY` |
 | Modern Kling Video CLI | official Kling CLI OAuth |
 | Modern Kling Image CLI | official Kling CLI OAuth |
 | Kling 3.0 Full REST | single `KLING_API_KEY` |
@@ -120,6 +122,56 @@ Then leave the key field blank in:
 The environment variable avoids storing the key inside workflow JSON.
 
 ---
+
+
+# Kling Video 4.0 - Early Access REST
+
+This branch adds direct API-key support for the temporary Kling Video 4.0 Early Access API.
+
+Base URL:
+
+```text
+https://api-singapore.klingai.com
+```
+
+Authentication:
+
+```text
+Authorization: Bearer <KLING_API_KEY>
+```
+
+Implemented endpoints:
+
+```text
+POST /text-to-video/kling-4.0
+POST /image-to-video/kling-4.0
+POST /omni-video/kling-4.0
+GET  /tasks?task_ids=<id>
+```
+
+Nodes:
+
+- **Kling 4.0 REST • API Key**
+- **Kling 4.0 REST • Access Check**
+- **Kling 4.0 REST • Task Status**
+- **Kling 4.0 REST • Text to Video**
+- **Kling 4.0 REST • Image to Video / Multi-Keyframes**
+- **Kling 4.0 REST • Omni Reference / Video Edit**
+
+Highlights:
+
+- 3-30 second output duration
+- 720p / 1080p
+- T2V aspect ratios: 21:9, 16:9, 9:16, 1:1
+- I2V with first / middle / last keyframes and up to 10 images
+- Omni with reference images, feature videos, one base video, Elements and Voice references
+- Omni adaptive aspect ratio
+- local preflight checks for documented image/reference-count limits
+- original result video is downloaded to ComfyUI output and its audio is exposed as an AUDIO output
+- existing Kling 3.0 REST and Kling 4.x CLI/MCP nodes remain unchanged
+
+The temporary Early Access REST specification does not define a separate request-side audio toggle for the three Kling 4.0 endpoints. The REST nodes therefore do not invent one.
+
 
 # Kling Video - dynamic CLI/MCP layer
 
