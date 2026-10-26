@@ -9,7 +9,7 @@ A direct Kling AI integration for ComfyUI with:
 - **Kling 3.0 Full REST** support using the current single API key
 - the original Kling-Direct legacy nodes for existing workflows
 
-Current fork version: **4.4.0**
+Current fork version: **4.4.1**
 
 Repository: https://github.com/maglat/ComfyUI-Kling-Direct
 
@@ -126,18 +126,29 @@ The environment variable avoids storing the key inside workflow JSON.
 
 ## Kling 4.0 local reference videos
 
-Version 4.4.0 adds official Kling material upload for local reference videos.
+Version 4.4.1 supports local reference videos through Kling's **official `file_upload` flow**.
 
 Use the existing **Kling Video Loader** node and connect its `video_path` output directly to one of the optional Kling 4.0 Omni inputs:
 
 - `base_video_path`
 - `feature_video_path_1` ... `feature_video_path_5`
 
-The file is uploaded to Kling's own `/v1/materials` endpoint with the same Bearer `KLING_API_KEY`, and the returned Kling-hosted URL is inserted into the Kling 4.0 Omni request automatically.
+Kling's current REST generation API accepts video references as URLs. For local files, ComfyUI-Kling-Direct therefore calls the official Kling CLI `file_upload` command, which performs Kling's documented two-step upload-ticket flow and returns a Kling-hosted public URL. That URL is inserted into the direct Kling 4.0 REST request automatically.
 
-Public URL inputs remain supported through `base_video_url` and `feature_video_urls`.
+**Authentication split:**
+- Kling 4.0 generation: your existing `KLING_API_KEY`
+- local file upload: official Kling CLI OAuth login
 
-A standalone **Kling 4.0 REST • Official Video Upload** node is also included for workflows that need the uploaded URL explicitly.
+On the ComfyUI server, install/login once as the same OS user that runs ComfyUI:
+
+```bash
+npm i -g @klingai/cli-global
+kling login
+```
+
+Public URL inputs remain supported through `base_video_url` and `feature_video_urls` and do not require the CLI upload step.
+
+A standalone **Kling 4.0 REST • Official Video Upload** node is included for workflows that need the uploaded URL explicitly.
 
 Supported local formats for Kling 4.0 Omni are `.mp4` and `.mov`; the local preflight rejects files larger than 300 MB.
 

@@ -1,7 +1,7 @@
 [project]
 name = "kling-direct"
-description = "Direct Kling AI integration for ComfyUI with Kling 4.0 Early Access REST, official local media upload, schema-driven CLI-MCP support, Image 3.0/O1, and Kling 3.0 REST"
-version = "4.4.0"
+description = "Direct Kling AI integration for ComfyUI with Kling 4.0 Early Access REST, official Kling CLI local media upload, schema-driven CLI-MCP support, Image 3.0/O1, and Kling 3.0 REST"
+version = "4.4.1"
 license = "MIT"
 requires-python = ">=3.10"
 dependencies = [

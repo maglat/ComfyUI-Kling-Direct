@@ -6,6 +6,22 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [4.4.1] — 2026-10-26
+
+Fix local video upload for Kling 4.0 Omni.
+
+### Fixed
+- Replaced the incompatible `/v1/materials` single-API-key multipart upload introduced in 4.4.0.
+- Local .mp4/.mov files now use Kling's officially documented `kling file_upload` flow.
+- The Kling CLI performs the two-step upload-ticket flow and returns the Kling-hosted public URL used by the direct Kling 4.0 REST request.
+- Upload failures now explicitly explain the one-time `kling login` requirement.
+- Added tests for CLI upload invocation and login-error handling.
+
+### Authentication
+- Generation remains direct REST with `KLING_API_KEY`.
+- Only local file upload uses Kling CLI OAuth.
+- Existing public video URLs continue to work without CLI upload.
+
 ## [4.4.0] — 2026-10-26
 
 Official Kling local video upload for Kling 4.0 Omni.
