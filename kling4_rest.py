@@ -13,17 +13,16 @@ existing Kling 3.0 Full REST layer. Existing CLI/MCP and 3.0 nodes are untouched
 from __future__ import annotations
 
 import json
-import mimetypes
 import os
 import uuid
 from typing import Any, Dict, Iterable, List, Optional
 from urllib.parse import urlparse
 
-import requests
 import torch
 
 try:
     from .kling_nodes import tensor_to_base64_string
+    from .kling4_cli import Kling4CLIError, _run_cli
     from .kling3_full import (
         DEFAULT_BASE_URL,
         Kling3APIError,
@@ -35,6 +34,7 @@ try:
     )
 except ImportError:
     from kling_nodes import tensor_to_base64_string
+    from kling4_cli import Kling4CLIError, _run_cli
     from kling3_full import (
         DEFAULT_BASE_URL,
         Kling3APIError,
@@ -206,70 +206,36 @@ def _extract_material_id(data: Any) -> str:
 
 
 def _official_upload_video(auth: Dict[str, Any], file_path: str) -> tuple[str, str, Dict[str, Any]]:
-    """Upload a local video to Kling's official materials endpoint.
+    """Upload a local video through Kling's official CLI/MCP file_upload flow.
 
-    This uses the same Bearer KLING_API_KEY as the direct Kling REST nodes.
-    No third-party/public paste host is involved.
+    Kling's current public REST API accepts video references as URLs but does
+    not document a single-API-key REST upload endpoint. The official CLI wraps
+    Kling's two-step file_upload ticket flow and returns the final Kling-hosted
+    public URL. The subsequent Kling 4.0 generation still uses the direct REST
+    API and KLING_API_KEY.
     """
     path = _validate_local_video_path(file_path, "video_path")
-    api_key = (auth.get("api_key") or os.environ.get("KLING_API_KEY", "")).strip()
-    if not api_key:
-        raise ValueError("No Kling API key found for official material upload.")
-
-    base_url = (auth.get("base_url") or DEFAULT_BASE_URL).rstrip("/")
-    endpoint = f"{base_url}/v1/materials"
-    mime = mimetypes.guess_type(path)[0] or (
-        "video/quicktime" if path.lower().endswith(".mov") else "video/mp4"
-    )
-    headers = {"Authorization": f"Bearer {api_key}"}
 
     try:
-        with open(path, "rb") as handle:
-            response = requests.post(
-                endpoint,
-                headers=headers,
-                files=[
-                    ("type", (None, "video")),
-                    ("file", (os.path.basename(path), handle, mime)),
-                ],
-                timeout=300,
-            )
-    except requests.RequestException as exc:
+        result = _run_cli(["file_upload", path, "--quiet"], timeout=600)
+    except (Kling4CLIError, TimeoutError) as exc:
         raise Kling3APIError(
-            f"Official Kling material upload network error: {type(exc).__name__}"
+            "Official Kling file upload failed. Local video upload requires the "
+            "official Kling CLI to be installed and logged in as the same OS user "
+            "that runs ComfyUI. Run: npm i -g @klingai/cli-global && kling login. "
+            f"Details: {exc}"
         ) from None
 
-    try:
-        payload = response.json()
-    except ValueError:
-        payload = {}
-
-    code = payload.get("code") if isinstance(payload, dict) else None
-    if response.status_code >= 400 or (code is not None and code != 0):
-        message = "Official Kling material upload failed"
-        if isinstance(payload, dict):
-            message = payload.get("message") or payload.get("msg") or message
-        raise Kling3APIError(
-            f"{message} (HTTP {response.status_code}, code={code})",
-            code=code if isinstance(code, int) else None,
-            status_code=response.status_code,
-        )
-
-    data = payload.get("data") if isinstance(payload, dict) else None
-    if not isinstance(data, dict):
-        raise Kling3APIError(
-            "Official Kling material upload returned no data object."
-        )
-
-    material_url = _extract_material_url(data)
-    material_id = _extract_material_id(data)
+    material_url = _extract_material_url(result)
+    material_id = _extract_material_id(result)
     if not material_url:
+        keys = sorted(result.keys()) if isinstance(result, dict) else []
         raise Kling3APIError(
-            "Official Kling material upload succeeded but returned no usable URL. "
-            f"Material ID: {material_id or 'unknown'}. Response fields: {sorted(data.keys())}"
+            "Official Kling CLI file_upload completed but returned no usable public URL. "
+            f"Top-level response fields: {keys}"
         )
 
-    return material_url, material_id, data
+    return material_url, material_id, result
 
 
 def _options(
@@ -338,7 +304,7 @@ class Kling4REST_OfficialVideoUpload:
                     {
                         "default": "",
                         "forceInput": True,
-                        "tooltip": "Local .mp4/.mov path. Connect video_path from Kling Video Loader.",
+                        "tooltip": "Local .mp4/.mov path. Uses official Kling CLI file_upload; run kling login once on the ComfyUI server.",
                     },
                 ),
             }
@@ -533,7 +499,7 @@ class Kling4REST_OmniVideo:
             {
                 "default": "",
                 "forceInput": True,
-                "tooltip": "Optional local .mp4/.mov. Connect video_path from Kling Video Loader; uploaded to Kling automatically.",
+                "tooltip": "Optional local .mp4/.mov. Connect video_path from Kling Video Loader; uploaded via official Kling CLI file_upload.",
             },
         )
         for i in range(1, 6):
@@ -542,7 +508,7 @@ class Kling4REST_OmniVideo:
                 {
                     "default": "",
                     "forceInput": True,
-                    "tooltip": "Optional local .mp4/.mov feature reference. Uploaded to Kling automatically.",
+                    "tooltip": "Optional local .mp4/.mov feature reference. Uploaded via official Kling CLI file_upload.",
                 },
             )
 
