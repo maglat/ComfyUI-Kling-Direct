@@ -13,10 +13,13 @@ existing Kling 3.0 Full REST layer. Existing CLI/MCP and 3.0 nodes are untouched
 from __future__ import annotations
 
 import json
+import mimetypes
+import os
 import uuid
 from typing import Any, Dict, Iterable, List, Optional
 from urllib.parse import urlparse
 
+import requests
 import torch
 
 try:
@@ -141,6 +144,134 @@ def _validate_public_url(url: str, label: str) -> str:
     return value
 
 
+_MATERIAL_URL_KEYS = (
+    "url",
+    "file_url",
+    "fileUrl",
+    "material_url",
+    "materialUrl",
+    "download_url",
+    "downloadUrl",
+    "resource_url",
+    "resourceUrl",
+    "cdn_url",
+    "cdnUrl",
+)
+_MATERIAL_ID_KEYS = ("id", "materials_id", "material_id", "file_id", "fileId")
+
+
+def _validate_local_video_path(file_path: str, label: str) -> str:
+    path = os.path.abspath(os.path.expanduser((file_path or "").strip()))
+    if not path or not os.path.isfile(path):
+        raise ValueError(f"{label} must point to an existing local video file.")
+    ext = os.path.splitext(path)[1].lower()
+    if ext not in (".mp4", ".mov"):
+        raise ValueError(f"{label} must be an .mp4 or .mov file.")
+    size = os.path.getsize(path)
+    if size > 300 * 1024 * 1024:
+        raise ValueError(f"{label} exceeds Kling 4.0's 300 MB video limit.")
+    return path
+
+
+def _find_nested_string(value: Any, keys: Iterable[str]) -> str:
+    wanted = set(keys)
+    if isinstance(value, dict):
+        for key in wanted:
+            candidate = value.get(key)
+            if isinstance(candidate, str) and candidate.strip():
+                return candidate.strip()
+        for child in value.values():
+            found = _find_nested_string(child, wanted)
+            if found:
+                return found
+    elif isinstance(value, list):
+        for child in value:
+            found = _find_nested_string(child, wanted)
+            if found:
+                return found
+    return ""
+
+
+def _extract_material_url(data: Any) -> str:
+    value = _find_nested_string(data, _MATERIAL_URL_KEYS)
+    if value:
+        return _validate_public_url(value, "Kling material upload response URL")
+    return ""
+
+
+def _extract_material_id(data: Any) -> str:
+    if not isinstance(data, (dict, list)):
+        return ""
+    return _find_nested_string(data, _MATERIAL_ID_KEYS)
+
+
+def _official_upload_video(auth: Dict[str, Any], file_path: str) -> tuple[str, str, Dict[str, Any]]:
+    """Upload a local video to Kling's official materials endpoint.
+
+    This uses the same Bearer KLING_API_KEY as the direct Kling REST nodes.
+    No third-party/public paste host is involved.
+    """
+    path = _validate_local_video_path(file_path, "video_path")
+    api_key = (auth.get("api_key") or os.environ.get("KLING_API_KEY", "")).strip()
+    if not api_key:
+        raise ValueError("No Kling API key found for official material upload.")
+
+    base_url = (auth.get("base_url") or DEFAULT_BASE_URL).rstrip("/")
+    endpoint = f"{base_url}/v1/materials"
+    mime = mimetypes.guess_type(path)[0] or (
+        "video/quicktime" if path.lower().endswith(".mov") else "video/mp4"
+    )
+    headers = {"Authorization": f"Bearer {api_key}"}
+
+    try:
+        with open(path, "rb") as handle:
+            response = requests.post(
+                endpoint,
+                headers=headers,
+                files=[
+                    ("type", (None, "video")),
+                    ("file", (os.path.basename(path), handle, mime)),
+                ],
+                timeout=300,
+            )
+    except requests.RequestException as exc:
+        raise Kling3APIError(
+            f"Official Kling material upload network error: {type(exc).__name__}"
+        ) from None
+
+    try:
+        payload = response.json()
+    except ValueError:
+        payload = {}
+
+    code = payload.get("code") if isinstance(payload, dict) else None
+    if response.status_code >= 400 or (code is not None and code != 0):
+        message = "Official Kling material upload failed"
+        if isinstance(payload, dict):
+            message = payload.get("message") or payload.get("msg") or message
+        raise Kling3APIError(
+            f"{message} (HTTP {response.status_code}, code={code})",
+            code=code if isinstance(code, int) else None,
+            status_code=response.status_code,
+        )
+
+    data = payload.get("data") if isinstance(payload, dict) else None
+    if not isinstance(data, dict):
+        raise Kling3APIError(
+            "Official Kling material upload returned no data object."
+        )
+
+    material_url = _extract_material_url(data)
+    material_id = _extract_material_id(data)
+    if not material_url:
+        raise Kling3APIError(
+            "Official Kling material upload succeeded but returned no usable URL. "
+            f"Material ID: {material_id or 'unknown'}. Response fields: {sorted(data.keys())}"
+        )
+
+    return material_url, material_id, data
+
+
 def _options(
     watermark: bool,
     callback_url: str,
@@ -194,6 +325,33 @@ class Kling4REST_AccessCheck:
 
 class Kling4REST_TaskStatus(Kling3Full_TaskStatus):
     CATEGORY = "Kling 4.0 REST/Config"
+
+
+class Kling4REST_OfficialVideoUpload:
+    @classmethod
+    def INPUT_TYPES(cls):
+        return {
+            "required": {
+                "auth": ("KLING_AUTH",),
+                "video_path": (
+                    "STRING",
+                    {
+                        "default": "",
+                        "forceInput": True,
+                        "tooltip": "Local .mp4/.mov path. Connect video_path from Kling Video Loader.",
+                    },
+                ),
+            }
+        }
+
+    RETURN_TYPES = ("STRING", "STRING", "STRING")
+    RETURN_NAMES = ("url", "material_id", "metadata_json")
+    FUNCTION = "upload"
+    CATEGORY = "Kling 4.0 REST/Config"
+
+    def upload(self, auth, video_path):
+        url, material_id, data = _official_upload_video(auth, video_path)
+        return url, material_id, json.dumps(data, indent=2, ensure_ascii=False)
 
 
 class Kling4REST_TextToVideo:
@@ -370,6 +528,23 @@ class Kling4REST_OmniVideo:
             optional[f"middle_frame_{i}"] = ("IMAGE",)
         for i in range(1, 11):
             optional[f"refer_image_{i}"] = ("IMAGE",)
+        optional["base_video_path"] = (
+            "STRING",
+            {
+                "default": "",
+                "forceInput": True,
+                "tooltip": "Optional local .mp4/.mov. Connect video_path from Kling Video Loader; uploaded to Kling automatically.",
+            },
+        )
+        for i in range(1, 6):
+            optional[f"feature_video_path_{i}"] = (
+                "STRING",
+                {
+                    "default": "",
+                    "forceInput": True,
+                    "tooltip": "Optional local .mp4/.mov feature reference. Uploaded to Kling automatically.",
+                },
+            )
 
         return {
             "required": {
@@ -460,6 +635,12 @@ class Kling4REST_OmniVideo:
         refer_image_8=None,
         refer_image_9=None,
         refer_image_10=None,
+        base_video_path=None,
+        feature_video_path_1=None,
+        feature_video_path_2=None,
+        feature_video_path_3=None,
+        feature_video_path_4=None,
+        feature_video_path_5=None,
     ):
         text = _validate_prompt(prompt, required=True)
 
@@ -506,14 +687,52 @@ class Kling4REST_OmniVideo:
         feature_videos = _parse_url_lines(
             feature_video_urls, 5, "feature_video_urls"
         )
+        local_feature_paths = [
+            p.strip()
+            for p in (
+                feature_video_path_1,
+                feature_video_path_2,
+                feature_video_path_3,
+                feature_video_path_4,
+                feature_video_path_5,
+            )
+            if isinstance(p, str) and p.strip()
+        ]
+
         base_video = (base_video_url or "").strip()
+        local_base_video = (
+            base_video_path.strip()
+            if isinstance(base_video_path, str) and base_video_path.strip()
+            else ""
+        )
+        if base_video and local_base_video:
+            raise ValueError(
+                "Use either base_video_url or base_video_path, not both."
+            )
         if base_video:
             _validate_public_url(base_video, "base_video_url")
-        video_count = len(feature_videos) + (1 if base_video else 0)
+
+        video_count = (
+            len(feature_videos)
+            + len(local_feature_paths)
+            + (1 if (base_video or local_base_video) else 0)
+        )
         if video_count > 5:
             raise ValueError(
                 "Kling 4.0 Omni supports at most 5 reference videos total."
             )
+
+        for path in local_feature_paths:
+            _validate_local_video_path(path, "feature_video_path")
+        if local_base_video:
+            _validate_local_video_path(local_base_video, "base_video_path")
+
+        if local_base_video:
+            base_video, _, _ = _official_upload_video(auth, local_base_video)
+
+        for path in local_feature_paths:
+            uploaded_url, _, _ = _official_upload_video(auth, path)
+            feature_videos.append(uploaded_url)
 
         elements = _parse_element_ids(element_ids, max_count=7)
         voices = _parse_string_ids(voice_ids, 3, "voice_ids")
@@ -594,6 +813,7 @@ NODE_CLASS_MAPPINGS = {
     "Kling4REST_Auth": Kling4REST_Auth,
     "Kling4REST_AccessCheck": Kling4REST_AccessCheck,
     "Kling4REST_TaskStatus": Kling4REST_TaskStatus,
+    "Kling4REST_OfficialVideoUpload": Kling4REST_OfficialVideoUpload,
     "Kling4REST_TextToVideo": Kling4REST_TextToVideo,
     "Kling4REST_ImageToVideo": Kling4REST_ImageToVideo,
     "Kling4REST_OmniVideo": Kling4REST_OmniVideo,
@@ -603,6 +823,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "Kling4REST_Auth": "Kling 4.0 REST • API Key",
     "Kling4REST_AccessCheck": "Kling 4.0 REST • Access Check",
     "Kling4REST_TaskStatus": "Kling 4.0 REST • Task Status",
+    "Kling4REST_OfficialVideoUpload": "Kling 4.0 REST • Official Video Upload",
     "Kling4REST_TextToVideo": "Kling 4.0 REST • Text to Video",
     "Kling4REST_ImageToVideo": "Kling 4.0 REST • Image to Video / Multi-Keyframes",
     "Kling4REST_OmniVideo": "Kling 4.0 REST • Omni Reference / Video Edit",

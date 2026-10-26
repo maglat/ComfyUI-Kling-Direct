@@ -6,6 +6,23 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [4.4.0] — 2026-10-26
+
+Official Kling local video upload for Kling 4.0 Omni.
+
+### Added
+- Official Kling `/v1/materials` video upload using the existing Bearer `KLING_API_KEY`.
+- `Kling 4.0 REST • Official Video Upload` node returning the Kling-hosted URL, material ID and metadata.
+- Optional `base_video_path` and `feature_video_path_1..5` inputs on Kling 4.0 Omni.
+- Direct compatibility with the existing Kling Video Loader `video_path` output.
+- Local validation for .mp4/.mov and the 300 MB Kling 4.0 input-video limit.
+- Tests for upload URL extraction, local feature-video insertion and base-video conflict handling.
+
+### Behavior
+- Public URL inputs remain fully backward compatible.
+- Local files are uploaded to Kling directly; no third-party public upload service is used.
+- When a base video is present it remains `@video_1`; feature videos follow in order.
+
 ## [4.3.0] — 2026-10-26
 
 Kling Video 4.0 Early Access direct REST integration.
