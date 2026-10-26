@@ -182,3 +182,86 @@ def test_image_minimum_dimension_enforced():
             torch.zeros((1, 299, 320, 3), dtype=torch.float32),
             "image",
         )
+
+
+def test_extract_material_url_from_nested_response():
+    assert k4._extract_material_url(
+        {"material": {"fileUrl": "https://cdn.example.com/ref.mp4"}}
+    ) == "https://cdn.example.com/ref.mp4"
+
+
+def test_official_upload_node_returns_url(monkeypatch):
+    monkeypatch.setattr(
+        k4,
+        "_official_upload_video",
+        lambda auth, path: (
+            "https://cdn.example.com/upload.mp4",
+            "material-123",
+            {"id": "material-123", "url": "https://cdn.example.com/upload.mp4"},
+        ),
+    )
+    node = k4.Kling4REST_OfficialVideoUpload()
+    url, material_id, metadata = node.upload({"api_key": "x"}, "/tmp/ref.mp4")
+    assert url == "https://cdn.example.com/upload.mp4"
+    assert material_id == "material-123"
+    assert "material-123" in metadata
+
+
+def test_omni_accepts_local_feature_video_path(monkeypatch):
+    captured = {}
+    _patch_network(monkeypatch, captured)
+    monkeypatch.setattr(k4, "_validate_local_video_path", lambda p, label: p)
+    monkeypatch.setattr(
+        k4,
+        "_official_upload_video",
+        lambda auth, path: (
+            "https://cdn.example.com/local-feature.mp4",
+            "material-1",
+            {"url": "https://cdn.example.com/local-feature.mp4"},
+        ),
+    )
+
+    node = k4.Kling4REST_OmniVideo()
+    node.generate(
+        {"api_key": "x"},
+        "Use motion from @video_1.",
+        "1080p",
+        "adaptive",
+        8,
+        "",
+        "",
+        "",
+        "",
+        False,
+        "",
+        "",
+        feature_video_path_1="/tmp/reference.mp4",
+    )
+
+    rows = captured["body"]["contents"]
+    assert any(
+        r.get("type") == "feature_video"
+        and r.get("id") == "video_1"
+        and r.get("url") == "https://cdn.example.com/local-feature.mp4"
+        for r in rows
+    )
+
+
+def test_omni_rejects_url_and_local_base_video_together(monkeypatch):
+    node = k4.Kling4REST_OmniVideo()
+    with pytest.raises(ValueError, match="either base_video_url or base_video_path"):
+        node.generate(
+            {"api_key": "x"},
+            "Edit @video_1.",
+            "1080p",
+            "adaptive",
+            8,
+            "",
+            "https://example.com/base.mp4",
+            "",
+            "",
+            False,
+            "",
+            "",
+            base_video_path="/tmp/base.mp4",
+        )
