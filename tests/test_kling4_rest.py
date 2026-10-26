@@ -265,3 +265,48 @@ def test_omni_rejects_url_and_local_base_video_together(monkeypatch):
             "",
             base_video_path="/tmp/base.mp4",
         )
+
+
+def test_official_upload_video_uses_kling_cli_file_upload(monkeypatch):
+    monkeypatch.setattr(k4, "_validate_local_video_path", lambda p, label: p)
+    captured = {}
+
+    def fake_run_cli(args, timeout=60):
+        captured["args"] = args
+        captured["timeout"] = timeout
+        return {
+            "ok": True,
+            "body": {
+                "url": "https://cdn.example.com/reference.mp4",
+                "id": "material-cli-1",
+            },
+        }
+
+    monkeypatch.setattr(k4, "_run_cli", fake_run_cli)
+    url, material_id, metadata = k4._official_upload_video(
+        {"api_key": "rest-key"},
+        "/tmp/reference.mp4",
+    )
+
+    assert captured["args"] == [
+        "file_upload",
+        "/tmp/reference.mp4",
+        "--quiet",
+    ]
+    assert captured["timeout"] == 600
+    assert url == "https://cdn.example.com/reference.mp4"
+    assert material_id == "material-cli-1"
+    assert metadata["ok"] is True
+
+
+def test_official_upload_video_explains_cli_login_requirement(monkeypatch):
+    monkeypatch.setattr(k4, "_validate_local_video_path", lambda p, label: p)
+    monkeypatch.setattr(
+        k4,
+        "_run_cli",
+        lambda *args, **kwargs: (_ for _ in ()).throw(
+            k4.Kling4CLIError("Not logged in")
+        ),
+    )
+    with pytest.raises(k4.Kling3APIError, match="kling login"):
+        k4._official_upload_video({"api_key": "rest-key"}, "/tmp/reference.mp4")
