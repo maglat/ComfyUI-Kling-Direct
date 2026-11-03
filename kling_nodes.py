@@ -587,17 +587,87 @@ def _empty_audio() -> Dict[str, Any]:
 
 
 def load_audio_to_tensor(file_path: str) -> Dict[str, Any]:
+    """Decode the source media's real audio as ComfyUI AUDIO [1, C, samples].
+
+    FFmpeg is preferred for MP4/AAC because torchaudio backends can fail to
+    decode video containers. Do not silently replace decoding errors with
+    _empty_audio(): that previously produced silent Video Combine exports.
+    Audio-free videos are still supported via the existing empty placeholder.
+    """
+    import subprocess
+
+    filename = os.path.basename(file_path)
+    ffprobe_exe = shutil.which("ffprobe")
+    ffmpeg_exe = shutil.which("ffmpeg")
+    decode_error = None
+
+    if ffprobe_exe and ffmpeg_exe:
+        try:
+            probe = subprocess.run(
+                [ffprobe_exe, "-v", "error", "-select_streams", "a:0",
+                 "-show_entries", "stream=sample_rate,channels", "-of", "json", file_path],
+                capture_output=True, text=True, check=True, timeout=30,
+            )
+            streams = json.loads(probe.stdout).get("streams", [])
+            if not streams:
+                logger.info("[KLING] No audio stream in '%s'; returning empty AUDIO output.", filename)
+                return _empty_audio()
+
+            sample_rate = int(streams[0]["sample_rate"])
+            channels = int(streams[0]["channels"])
+            if sample_rate <= 0 or not 1 <= channels <= 32:
+                raise ValueError(f"Invalid audio stream: {sample_rate} Hz, {channels} channels")
+
+            result = subprocess.run(
+                [ffmpeg_exe, "-nostdin", "-hide_banner", "-loglevel", "error",
+                 "-i", file_path, "-map", "0:a:0", "-vn",
+                 "-f", "f32le", "-acodec", "pcm_f32le",
+                 "-ar", str(sample_rate), "-ac", str(channels), "pipe:1"],
+                capture_output=True, check=True, timeout=180,
+            )
+            raw = result.stdout
+            if not raw or len(raw) % (4 * channels):
+                raise ValueError("Decoded audio is empty or not aligned to channel/sample width")
+            samples = np.frombuffer(raw, dtype="<f4").reshape(-1, channels).T.copy()
+            waveform = torch.from_numpy(samples).unsqueeze(0).contiguous()
+            if not torch.isfinite(waveform).all().item():
+                raise ValueError("Decoded audio contains NaN or infinity")
+
+            peak = float(waveform.abs().max().item())
+            rms = float(waveform.square().mean().sqrt().item())
+            print(f"[KLING] Audio decoded with FFmpeg: {sample_rate} Hz, "
+                  f"{channels} channels, {samples.shape[1]} samples, "
+                  f"peak={peak:.5f}, rms={rms:.5f}, dtype={waveform.dtype}")
+            if peak < 1e-5:
+                logger.warning("[KLING] Decoded audio in '%s' is practically silent; "
+                               "check the Kling source video.", filename)
+            return {"waveform": waveform, "sample_rate": sample_rate}
+        except (OSError, ValueError, KeyError, subprocess.SubprocessError) as exc:
+            decode_error = exc
+            logger.warning("[KLING] FFmpeg audio decoding failed for '%s': %s; "
+                           "trying torchaudio fallback.", filename, exc)
+    else:
+        logger.warning("[KLING] ffmpeg/ffprobe not found on PATH; "
+                       "trying torchaudio for '%s'.", filename)
+
     try:
         import torchaudio
         waveform, sample_rate = torchaudio.load(file_path)
+        waveform = waveform.to(device="cpu", dtype=torch.float32).contiguous()
+        if waveform.ndim != 2 or waveform.numel() == 0 or not torch.isfinite(waveform).all().item():
+            raise ValueError("torchaudio returned empty or invalid audio")
+        peak = float(waveform.abs().max().item())
+        logger.info("[KLING] Audio decoded with torchaudio: %s Hz, %s channels, peak=%.5f",
+                    sample_rate, waveform.shape[0], peak)
+        if peak < 1e-5:
+            logger.warning("[KLING] torchaudio returned practically silent audio for '%s'.", filename)
         return {"waveform": waveform.unsqueeze(0), "sample_rate": sample_rate}
-    except ImportError:
-        logger.warning("[KLING] torchaudio not installed -- returning silent audio placeholder.")
-        return _empty_audio()
-    except Exception as e:
-        logger.warning(f"[KLING] Could not extract audio from '{os.path.basename(file_path)}': {e}. Returning silent placeholder.")
-        return _empty_audio()
-
+    except Exception as exc:
+        raise RuntimeError(
+            f"[KLING] Failed to decode audio from '{filename}'. "
+            "Install FFmpeg (ffmpeg and ffprobe on PATH) or enable a working torchaudio "
+            f"backend. FFmpeg error: {decode_error}; torchaudio error: {exc}"
+        ) from exc
 
 def download_audio_to_tensor(url: str) -> Dict[str, Any]:
     """Download audio URL to ComfyUI AUDIO dict.

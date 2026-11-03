@@ -96,11 +96,47 @@ def test_empty_audio_is_cloned():
     assert torch.all(EMPTY_AUDIO["waveform"] == 0), "Module-level EMPTY_AUDIO was mutated!"
 
 
-def test_load_audio_to_tensor_handles_bad_file_with_clone():
-    """When torchaudio fails, load_audio_to_tensor returns a fresh empty audio
-    (not a shared reference)."""
-    a = load_audio_to_tensor("/nonexistent/path/zzz.mp3")
-    b = load_audio_to_tensor("/nonexistent/path/zzz.mp3")
+def test_load_audio_to_tensor_bad_file_raises_instead_of_silent_placeholder():
+    """A decoding failure must not silently produce an apparently valid video."""
+    with pytest.raises(RuntimeError, match="Failed to decode audio"):
+        load_audio_to_tensor("/nonexistent/path/zzz.mp3")
+
+
+def test_load_audio_to_tensor_ffmpeg_preserves_stereo(monkeypatch):
+    """MP4 extraction preserves channels, sample rate, and nonzero samples."""
+    import json
+    import subprocess
+
+    monkeypatch.setattr(kn.shutil, "which", lambda name: name)
+    pcm = np.array([[0.25, -0.5], [0.5, 0.75]], dtype="<f4").tobytes()
+
+    def fake_run(args, **kwargs):
+        if args[0] == "ffprobe":
+            return subprocess.CompletedProcess(
+                args, 0, json.dumps({"streams": [{"sample_rate": "44100", "channels": 2}]}), ""
+            )
+        assert args[0] == "ffmpeg"
+        return subprocess.CompletedProcess(args, 0, pcm, b"")
+
+    monkeypatch.setattr(subprocess, "run", fake_run)
+    audio = load_audio_to_tensor("sample.mp4")
+    assert audio["sample_rate"] == 44100
+    assert audio["waveform"].dtype == torch.float32
+    assert tuple(audio["waveform"].shape) == (1, 2, 2)
+    assert torch.allclose(audio["waveform"][0], torch.tensor([[0.25, 0.5], [-0.5, 0.75]]))
+
+
+def test_load_audio_to_tensor_no_audio_track_uses_empty_placeholder(monkeypatch):
+    """A video intentionally generated without audio remains supported."""
+    import subprocess
+
+    monkeypatch.setattr(kn.shutil, "which", lambda name: name)
+    monkeypatch.setattr(
+        subprocess, "run",
+        lambda args, **kwargs: subprocess.CompletedProcess(args, 0, '{"streams":[]}', ""),
+    )
+    a = load_audio_to_tensor("no_audio.mp4")
+    b = load_audio_to_tensor("no_audio.mp4")
     a["waveform"][...] = 7.0
     assert torch.all(b["waveform"] == 0)
 
