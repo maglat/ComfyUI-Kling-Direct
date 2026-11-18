@@ -764,3 +764,28 @@ hard-refresh the browser, **remove the old node and add it again** so its widget
 schema is recreated, then consciously select the ALLOW mode only if you accept
 an unverified potentially billable call. This is NOT confirmation that the
 native Image 4.0 endpoint or request schema works.
+
+
+## 2026-11-18: Kling Image 4.0 official API routes and request fix
+
+Kling's **official 2026-11-17 API release notes** identify:
+
+- `POST /image-generation/kling-4.0` for single images, edits and series.
+- `POST /long-image-generation/kling-4.0` for e-commerce/webpage long image.
+- `GET /tasks?task_ids=<id>` for status and output URLs.
+
+The earlier preview assumption `/v1/images/kling-v4-image` was incorrect (HTTP 404).
+The four existing node IDs are retained to preserve saved workflows. Request
+payloads now have `contents` (prompt and optional `refer_image` inputs) and
+`settings` (resolution, aspect, result type, number of images or long-image skill).
+Normal API-key Bearer authentication is retained. The `ALLOW` opt-in dropdown
+is retained for backwards compatibility, to prevent surprise paid requests.
+
+Full native request execution and API-key entitlement have **not** yet been
+verified with an authenticated Kling account; do a single 2k, n=1 test first.
+Kling charges for reference inputs as well as output images. Older general
+image resource packs may not cover Image 4.0; check your account balance.
+
+Official release notes: https://kling.ai/document-api/updates/api
+Provider-native schema example (third party, not Kling's developer reference):
+https://api-cn.apimaster.ai/docs/en/api/images/kling-image-4.0

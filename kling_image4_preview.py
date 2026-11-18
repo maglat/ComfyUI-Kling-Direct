@@ -1,15 +1,14 @@
-"""Experimental Kling Image 4.0 *direct REST* integration.
+"""Kling Image 4.0 REST integration (official release November 17, 2026).
 
-Kling announced developer API availability on 2026-11-18, but as of that date
-its public developer reference still documents Image 3.0 rather than the native
-Image 4.0 REST contract. The path below is INFERRED from a third-party's
-provider-native workflow, NOT confirmed by Kling. No paid task is submitted
-until the user explicitly enables the preview switch.
+The official Kling API release notes dated 2026-11-17 publish the model
+routes /image-generation/kling-4.0 and /long-image-generation/kling-4.0
+and polling via GET /tasks. The contents/settings/options request shape
+is corroborated by a published third-party integration; its detailed native
+field validation has not yet been exercised with a live Kling account.
 
 Source references:
-  https://kling.ai/blog/kling-image-4-stunningly-realistic-sharp-precise
-  https://kling.ai/document-api/apiReference/model/imageGeneration
-  https://picsart.com/api-platform/models/kling-image-4.0
+  https://kling.ai/document-api/updates/api
+  https://api-cn.apimaster.ai/docs/en/api/images/kling-image-4.0
 """
 from __future__ import annotations
 
@@ -26,16 +25,16 @@ except ImportError:
     from kling3_full import _client_from_auth, Kling3APIError
 
 
-# Provider-native route inferred from Picsart's kling/v1/images/kling-v4-image
-# workflow. DO NOT describe this as an officially documented Kling endpoint.
-PREVIEW_PATH = "/v1/images/kling-v4-image"
+# Both paths are explicitly listed in Kling's 2026-11-17 official API updates.
+PREVIEW_PATH = "/image-generation/kling-4.0"
+LONG_IMAGE_PATH = "/long-image-generation/kling-4.0"
 RATIOS = ["auto", "16:9", "9:16", "1:1", "4:3", "3:4", "3:2", "2:3", "21:9"]
 SIZES = ["2k", "4k", "8k"]
 GUIDANCE = (
-    "EXPERIMENTAL: Kling has not yet published a native Image 4.0 REST schema. "
-    "The inferred endpoint and task format may differ. No request will be sent "
-    "unless you enable the preview switch. API access and billing may require "
-    "account-specific authorization."
+    "KLING IMAGE 4.0 REST: Official Kling 4.0 image endpoints are available. "
+    "This switch explicitly authorizes a possibly billable request. Your API "
+    "key may need Image 4.0 entitlement or a compatible resource package. "
+    "Native end-to-end request acceptance is not yet verified."
 )
 
 
@@ -43,29 +42,34 @@ def _validate_prompt(prompt: str) -> str:
     text = (prompt or "").strip()
     if not text:
         raise ValueError("Kling Image 4.0 requires a nonempty prompt.")
-    if len(text) > 21000:
-        raise ValueError("Preview safety limit: prompt must be <= 21,000 characters.")
+    english = sum(1 for char in text if ord(char) < 128)
+    other = len(text) - english
+    if english / 50000 + other / 21000 > 1:
+        raise ValueError("Kling Image 4.0 prompt exceeds mixed-language limit (50k English / 21k non-English).")
     return text
 
 
 def _references(images: List[Any], max_count: int = 10) -> List[Dict[str, str]]:
+    """Make Image 4.0 contents references, preserving order and @image_N IDs."""
     out = []
     for image in images:
         if image is None:
             continue
         frame = image[0] if image.ndim == 4 else image
         if frame.ndim != 3:
-            raise ValueError("Each reference must be one ComfyUI IMAGE tensor.")
+            raise ValueError("Each reference must be a ComfyUI IMAGE tensor.")
         height, width = frame.shape[:2]
         if height < 300 or width < 300 or not 0.4 <= width / height <= 2.5:
-            raise ValueError("Kling references must be >= 300px on each side, aspect 2:5..5:2.")
-        # Image 4.0's binary/URL handling is not confirmed by Kling; use existing
-        # ComfyUI-Kling-Direct bare base64 convention. Test before production use.
-        out.append({"image_url": tensor_to_base64_string(image), "id": f"image_{len(out)+1}"})
-    if len(out) > max_count:
-        raise ValueError(f"At most {max_count} reference images may be provided.")
+            raise ValueError("Kling references must be >= 300px on both sides, aspect 2:5..5:2.")
+        b64 = tensor_to_base64_string(image)
+        # PNG can be larger than the requested resolution; enforce the API's 30 MB cap.
+        approx_size = len(b64) * 3 // 4
+        if approx_size > 30 * 1024 * 1024:
+            raise ValueError("Kling Image 4.0 reference exceeds 30 MB.")
+        out.append({"type": "refer_image", "id": f"image_{len(out)+1}", "url": b64})
+        if len(out) > max_count:
+            raise ValueError(f"At most {max_count} reference images may be provided.")
     return out
-
 
 def _urls(data: Any) -> List[str]:
     if not isinstance(data, dict):
@@ -110,45 +114,46 @@ def _preview_enabled(value: Any) -> bool:
 
 
 def _run(auth: Dict[str, Any], body: Dict[str, Any], enabled: bool, api_path: str):
+    """Submit a new-standard image task once, then poll the existing task.
+
+    Never submit again automatically after a timeout; polling an accepted task
+    does not incur a new generation charge.
+    """
     if not enabled:
-        raise RuntimeError(GUIDANCE)
-    if api_path != PREVIEW_PATH:
-        raise ValueError("Preview endpoint override is disabled until the official Kling spec is published.")
+        raise RuntimeError(GUIDANCE + " Set the request dropdown to ALLOW to submit.")
+    if api_path not in (PREVIEW_PATH, LONG_IMAGE_PATH):
+        raise ValueError("Unknown Kling Image 4.0 REST API path.")
     client = _client_from_auth(auth)
     try:
-        created = client._request("POST", api_path, body=body)
+        created = client._request("POST", api_path, body=body, timeout=180)
+        data = created.get("data") or {}
+        task_id = str(data.get("id") or data.get("task_id") or "")
+        if not task_id:
+            raise Kling3APIError("Kling Image 4.0 creation response has no data.id/task_id: "
+                                 + json.dumps(created)[:1200])
+        print(f"[KLING IMAGE 4.0] Task submitted: {task_id}")
+        task = client.poll_new_task(task_id)
     except Kling3APIError as exc:
         raise RuntimeError(
-            "Kling Image 4.0 preview REST request failed. Kling has not publicly "
-            f"confirmed this path. Original API error: {exc}"
+            f"Kling Image 4.0 REST request failed on {api_path}: {exc}. "
+            "Check the Kling API key's Image 4.0 entitlement and developer pricing."
         ) from exc
-
-    data = created.get("data") or created
-    urls = _urls(data)
-    task_id = str(data.get("task_id") or data.get("id") or "") if isinstance(data, dict) else ""
-    result = data
-    if not urls and task_id:
-        # Existing Kling APIs have both /tasks (new standard) and
-        # /v1/images/.../{task_id} (legacy). Select based on create response.
-        if "task_id" in data:
-            result = client.poll_legacy_task(api_path, task_id)
-        else:
-            result = client.poll_new_task(task_id)
-        urls = _urls(result)
+    urls = _urls(task)
     if not urls:
+        # Keep task metadata discoverable without submitting a new, paid task.
         raise RuntimeError(
-            "Kling Image 4.0 task did not return image URLs. No automatic "
-            "resubmission was attempted. Inspect the returned task using the "
-            f"task ID {task_id or '<missing>'} and the latest Kling documentation."
+            f"Kling Image 4.0 task {task_id} succeeded but returned no image URLs. "
+            "Check GET /tasks for this ID. Response: " + json.dumps(task)[:2500]
         )
     tensors = [download_to_tensor(url) for url in urls]
     first_shape = tuple(tensors[0].shape[1:])
     if any(tuple(t.shape[1:]) != first_shape for t in tensors):
-        raise RuntimeError("Generated images have different dimensions; ComfyUI IMAGE "
-                           "batches require equal dimensions. URLs: " + json.dumps(urls))
-    batch = torch.cat(tensors, dim=0)
-    return batch, json.dumps(urls, ensure_ascii=False), task_id, json.dumps(result, ensure_ascii=False)
-
+        raise RuntimeError(
+            f"Kling Image 4.0 task {task_id} returned different image sizes. "
+            "The individual URLs are: " + json.dumps(urls)
+        )
+    return (torch.cat(tensors, dim=0), json.dumps(urls, ensure_ascii=False),
+            task_id, json.dumps(task, ensure_ascii=False))
 
 def _optional_refs():
     return {f"reference_{i}": ("IMAGE",) for i in range(1, 11)}
@@ -168,11 +173,18 @@ class KlingImage4Preview_TextToImage:
     RETURN_TYPES = ("IMAGE", "STRING", "STRING", "STRING")
     RETURN_NAMES = ("images", "urls_json", "task_id", "metadata_json")
     FUNCTION = "generate"
-    CATEGORY = "Kling Image 4.0 REST (EXPERIMENTAL)"
+    CATEGORY = "Kling Image 4.0 REST/Images"
 
     def generate(self, auth, prompt, resolution, aspect_ratio, n, enable_unverified_rest_preview):
-        body = {"result_type": "single", "prompt": _validate_prompt(prompt),
-                "resolution": resolution, "aspect_ratio": aspect_ratio, "n": n}
+        body = {
+            "contents": [{"type": "prompt", "text": _validate_prompt(prompt)}],
+            "settings": {
+                "result_type": "single",
+                "resolution": resolution,
+                "aspect_ratio": aspect_ratio,
+                "n": n,
+            },
+        }
         return _run(auth, body, _preview_enabled(enable_unverified_rest_preview), PREVIEW_PATH)
 
 
@@ -191,14 +203,20 @@ class KlingImage4Preview_ImageEdit:
     RETURN_TYPES = ("IMAGE", "STRING", "STRING", "STRING")
     RETURN_NAMES = ("images", "urls_json", "task_id", "metadata_json")
     FUNCTION = "generate"
-    CATEGORY = "Kling Image 4.0 REST (EXPERIMENTAL)"
+    CATEGORY = "Kling Image 4.0 REST/Images"
 
     def generate(self, auth, prompt, image, resolution, aspect_ratio, n,
                  enable_unverified_rest_preview, **kwargs):
         images = [image] + [kwargs.get(f"reference_{i}") for i in range(2, 11)]
-        body = {"result_type": "single", "prompt": _validate_prompt(prompt),
-                "image_list": _references(images),
-                "resolution": resolution, "aspect_ratio": aspect_ratio, "n": n}
+        body = {
+            "contents": [{"type": "prompt", "text": _validate_prompt(prompt)}] + _references(images),
+            "settings": {
+                "result_type": "single",
+                "resolution": resolution,
+                "aspect_ratio": aspect_ratio,
+                "n": n,
+            },
+        }
         return _run(auth, body, _preview_enabled(enable_unverified_rest_preview), PREVIEW_PATH)
 
 
@@ -216,16 +234,20 @@ class KlingImage4Preview_Series:
     RETURN_TYPES = ("IMAGE", "STRING", "STRING", "STRING")
     RETURN_NAMES = ("images", "urls_json", "task_id", "metadata_json")
     FUNCTION = "generate"
-    CATEGORY = "Kling Image 4.0 REST (EXPERIMENTAL)"
+    CATEGORY = "Kling Image 4.0 REST/Images"
 
     def generate(self, auth, prompt, resolution, aspect_ratio, series_amount,
                  enable_unverified_rest_preview, **kwargs):
-        body = {"result_type": "series", "prompt": _validate_prompt(prompt),
-                "resolution": resolution, "aspect_ratio": aspect_ratio,
-                "series_amount": ("auto" if series_amount == "auto" else int(series_amount))}
         refs = _references([kwargs.get(f"reference_{i}") for i in range(1, 11)])
-        if refs:
-            body["image_list"] = refs
+        body = {
+            "contents": [{"type": "prompt", "text": _validate_prompt(prompt)}] + refs,
+            "settings": {
+                "result_type": "series",
+                "resolution": resolution,
+                "aspect_ratio": aspect_ratio,
+                "series_amount": "auto" if series_amount == "auto" else int(series_amount),
+            },
+        }
         return _run(auth, body, _preview_enabled(enable_unverified_rest_preview), PREVIEW_PATH)
 
 
@@ -243,16 +265,28 @@ class KlingImage4Preview_LongImage:
     RETURN_TYPES = ("IMAGE", "STRING", "STRING", "STRING")
     RETURN_NAMES = ("image", "urls_json", "task_id", "metadata_json")
     FUNCTION = "generate"
-    CATEGORY = "Kling Image 4.0 REST (EXPERIMENTAL)"
+    CATEGORY = "Kling Image 4.0 REST/Images"
 
     def generate(self, auth, prompt, skill, length, resolution,
                  enable_unverified_rest_preview, **kwargs):
         refs = _references([kwargs.get(f"reference_{i}") for i in range(1, 4)], max_count=3)
-        body = {"result_type": "long_image", "prompt": _validate_prompt(prompt),
-                "resolution": resolution, "skill": skill, "length": length}
-        if refs:
-            body["image_list"] = refs
-        return _run(auth, body, _preview_enabled(enable_unverified_rest_preview), PREVIEW_PATH)
+        settings = {"skill": skill, "resolution": resolution}
+        if skill == "ecommerce":
+            if not 1 <= len(refs) <= 3:
+                raise ValueError("Kling Image 4.0 e-commerce long image requires 1-3 product reference images.")
+            settings["length"] = length
+        else:
+            if len(refs) > 2:
+                raise ValueError("Kling Image 4.0 webpage accepts at most two references (style and subject).")
+            if len(refs) >= 1:
+                refs[0]["type"] = "style_refer_image"
+            if len(refs) == 2:
+                refs[1]["type"] = "subject_refer_image"
+        body = {
+            "contents": [{"type": "prompt", "text": _validate_prompt(prompt)}] + refs,
+            "settings": settings,
+        }
+        return _run(auth, body, _preview_enabled(enable_unverified_rest_preview), LONG_IMAGE_PATH)
 
 
 NODE_CLASS_MAPPINGS = {
@@ -262,8 +296,8 @@ NODE_CLASS_MAPPINGS = {
     "KlingImage4Preview_LongImage": KlingImage4Preview_LongImage,
 }
 NODE_DISPLAY_NAME_MAPPINGS = {
-    "KlingImage4Preview_TextToImage": "Kling Image 4.0 REST (Preview) - Text to Image",
-    "KlingImage4Preview_ImageEdit": "Kling Image 4.0 REST (Preview) - Image Edit",
-    "KlingImage4Preview_Series": "Kling Image 4.0 REST (Preview) - Image Series",
-    "KlingImage4Preview_LongImage": "Kling Image 4.0 REST (Preview) - Long Image",
+    "KlingImage4Preview_TextToImage": "Kling Image 4.0 REST - Text to Image",
+    "KlingImage4Preview_ImageEdit": "Kling Image 4.0 REST - Image Edit",
+    "KlingImage4Preview_Series": "Kling Image 4.0 REST - Image Series",
+    "KlingImage4Preview_LongImage": "Kling Image 4.0 REST - Long Image",
 }
