@@ -752,3 +752,15 @@ This branch does not change any existing Kling 3.0/4.0 production nodes.
 Sources: https://kling.ai/blog/kling-image-4-stunningly-realistic-sharp-precise ;
 https://kling.ai/document-api/apiReference/model/imageGeneration ;
 https://picsart.com/api-platform/models/kling-image-4.0 .
+
+
+### Preview request switch visibility (2026-11-18)
+
+The four experimental Image 4.0 REST nodes now expose an explicit **dropdown**
+`enable_unverified_rest_preview` with `BLOCKED - do not send API request`
+(default) and `ALLOW - send unverified REST test request`. This replaces the
+BOOLEAN control that some ComfyUI frontends did not render. Restart ComfyUI,
+hard-refresh the browser, **remove the old node and add it again** so its widget
+schema is recreated, then consciously select the ALLOW mode only if you accept
+an unverified potentially billable call. This is NOT confirmation that the
+native Image 4.0 endpoint or request schema works.

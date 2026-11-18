@@ -94,6 +94,21 @@ def _urls(data: Any) -> List[str]:
     return list(dict.fromkeys(urls))
 
 
+# A combo box is used rather than a BOOLEAN widget because some ComfyUI
+# frontends hide BOOLEAN controls inside migrated/previously saved nodes.
+# String values are deliberately compared exactly: a nonempty "BLOCKED" must
+# never be mistaken for authorization to send a potentially billable request.
+PREVIEW_REQUEST_MODES = [
+    "BLOCKED - do not send API request",
+    "ALLOW - send unverified REST test request",
+]
+
+
+def _preview_enabled(value: Any) -> bool:
+    # Preserve explicit opt-in for workflows saved with the old BOOLEAN input.
+    return value is True or value == PREVIEW_REQUEST_MODES[1]
+
+
 def _run(auth: Dict[str, Any], body: Dict[str, Any], enabled: bool, api_path: str):
     if not enabled:
         raise RuntimeError(GUIDANCE)
@@ -148,7 +163,7 @@ class KlingImage4Preview_TextToImage:
             "resolution": (SIZES, {"default": "2k"}),
             "aspect_ratio": (RATIOS, {"default": "auto"}),
             "n": ("INT", {"default": 1, "min": 1, "max": 9}),
-            "enable_unverified_rest_preview": ("BOOLEAN", {"default": False, "tooltip": GUIDANCE}),
+            "enable_unverified_rest_preview": (PREVIEW_REQUEST_MODES, {"default": PREVIEW_REQUEST_MODES[0], "tooltip": GUIDANCE}),
         }}
     RETURN_TYPES = ("IMAGE", "STRING", "STRING", "STRING")
     RETURN_NAMES = ("images", "urls_json", "task_id", "metadata_json")
@@ -158,7 +173,7 @@ class KlingImage4Preview_TextToImage:
     def generate(self, auth, prompt, resolution, aspect_ratio, n, enable_unverified_rest_preview):
         body = {"result_type": "single", "prompt": _validate_prompt(prompt),
                 "resolution": resolution, "aspect_ratio": aspect_ratio, "n": n}
-        return _run(auth, body, enable_unverified_rest_preview, PREVIEW_PATH)
+        return _run(auth, body, _preview_enabled(enable_unverified_rest_preview), PREVIEW_PATH)
 
 
 class KlingImage4Preview_ImageEdit:
@@ -171,7 +186,7 @@ class KlingImage4Preview_ImageEdit:
             "resolution": (SIZES, {"default": "2k"}),
             "aspect_ratio": (RATIOS, {"default": "auto"}),
             "n": ("INT", {"default": 1, "min": 1, "max": 9}),
-            "enable_unverified_rest_preview": ("BOOLEAN", {"default": False, "tooltip": GUIDANCE}),
+            "enable_unverified_rest_preview": (PREVIEW_REQUEST_MODES, {"default": PREVIEW_REQUEST_MODES[0], "tooltip": GUIDANCE}),
         }, "optional": {f"reference_{i}": ("IMAGE",) for i in range(2, 11)}}
     RETURN_TYPES = ("IMAGE", "STRING", "STRING", "STRING")
     RETURN_NAMES = ("images", "urls_json", "task_id", "metadata_json")
@@ -184,7 +199,7 @@ class KlingImage4Preview_ImageEdit:
         body = {"result_type": "single", "prompt": _validate_prompt(prompt),
                 "image_list": _references(images),
                 "resolution": resolution, "aspect_ratio": aspect_ratio, "n": n}
-        return _run(auth, body, enable_unverified_rest_preview, PREVIEW_PATH)
+        return _run(auth, body, _preview_enabled(enable_unverified_rest_preview), PREVIEW_PATH)
 
 
 class KlingImage4Preview_Series:
@@ -196,7 +211,7 @@ class KlingImage4Preview_Series:
             "resolution": (SIZES, {"default": "2k"}),
             "aspect_ratio": (RATIOS, {"default": "auto"}),
             "series_amount": (["auto"] + [str(x) for x in range(2, 11)], {"default": "4"}),
-            "enable_unverified_rest_preview": ("BOOLEAN", {"default": False, "tooltip": GUIDANCE}),
+            "enable_unverified_rest_preview": (PREVIEW_REQUEST_MODES, {"default": PREVIEW_REQUEST_MODES[0], "tooltip": GUIDANCE}),
         }, "optional": _optional_refs()}
     RETURN_TYPES = ("IMAGE", "STRING", "STRING", "STRING")
     RETURN_NAMES = ("images", "urls_json", "task_id", "metadata_json")
@@ -211,7 +226,7 @@ class KlingImage4Preview_Series:
         refs = _references([kwargs.get(f"reference_{i}") for i in range(1, 11)])
         if refs:
             body["image_list"] = refs
-        return _run(auth, body, enable_unverified_rest_preview, PREVIEW_PATH)
+        return _run(auth, body, _preview_enabled(enable_unverified_rest_preview), PREVIEW_PATH)
 
 
 class KlingImage4Preview_LongImage:
@@ -223,7 +238,7 @@ class KlingImage4Preview_LongImage:
             "skill": (["ecommerce", "webpage"], {"default": "ecommerce"}),
             "length": (["short", "medium", "long"], {"default": "medium"}),
             "resolution": (["1k", "2k"], {"default": "2k"}),
-            "enable_unverified_rest_preview": ("BOOLEAN", {"default": False, "tooltip": GUIDANCE}),
+            "enable_unverified_rest_preview": (PREVIEW_REQUEST_MODES, {"default": PREVIEW_REQUEST_MODES[0], "tooltip": GUIDANCE}),
         }, "optional": {f"reference_{i}": ("IMAGE",) for i in range(1, 4)}}
     RETURN_TYPES = ("IMAGE", "STRING", "STRING", "STRING")
     RETURN_NAMES = ("image", "urls_json", "task_id", "metadata_json")
@@ -237,7 +252,7 @@ class KlingImage4Preview_LongImage:
                 "resolution": resolution, "skill": skill, "length": length}
         if refs:
             body["image_list"] = refs
-        return _run(auth, body, enable_unverified_rest_preview, PREVIEW_PATH)
+        return _run(auth, body, _preview_enabled(enable_unverified_rest_preview), PREVIEW_PATH)
 
 
 NODE_CLASS_MAPPINGS = {

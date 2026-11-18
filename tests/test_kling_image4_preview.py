@@ -50,3 +50,19 @@ def test_new_and_legacy_image_response_urls():
     assert m._urls({"task_result":{"images":[{"url":"https://cdn.example.com/a.png"}]}}) == [
         "https://cdn.example.com/a.png"
     ]
+
+
+def test_request_mode_requires_explicit_opt_in():
+    assert m._preview_enabled(False) is False
+    assert m._preview_enabled(True) is True  # backwards-compatible old workflows
+    assert m._preview_enabled(m.PREVIEW_REQUEST_MODES[0]) is False
+    assert m._preview_enabled(m.PREVIEW_REQUEST_MODES[1]) is True
+    assert m._preview_enabled("anything else") is False
+
+
+def test_disabled_combo_blocks_api_calls(monkeypatch):
+    monkeypatch.setattr(m, "_client_from_auth", lambda auth: pytest.fail("API called"))
+    with pytest.raises(RuntimeError, match="EXPERIMENTAL"):
+        m.KlingImage4Preview_TextToImage().generate(
+            {}, "fashion studio", "2k", "3:4", 1, m.PREVIEW_REQUEST_MODES[0]
+        )
