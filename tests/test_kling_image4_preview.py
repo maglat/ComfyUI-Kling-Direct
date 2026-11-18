@@ -37,7 +37,7 @@ def test_image_edit_multiple_references(monkeypatch):
 
 def test_series_and_long_image_modes(monkeypatch):
     bodies = []
-    monkeypatch.setattr(m, "_run", lambda auth, body, enabled, path: bodies.append(body) or ("ok",))
+    monkeypatch.setattr(m, "_run", lambda auth, body, enabled, path: bodies.append(body) or (torch.ones(1,60,5,3), "urls", "id", "metadata"))
     m.KlingImage4Preview_Series().generate({}, "outfit series", "4k", "16:9", "10", True)
     m.KlingImage4Preview_LongImage().generate({}, "product landing page", "webpage",
                                               "long", "2k", True)
@@ -72,7 +72,7 @@ def test_disabled_combo_blocks_api_calls(monkeypatch):
 
 def test_confirmed_routes_are_used(monkeypatch):
     calls = []
-    monkeypatch.setattr(m, "_run", lambda auth, body, enabled, path: calls.append((body, path)) or ("ok",))
+    monkeypatch.setattr(m, "_run", lambda auth, body, enabled, path: calls.append((body, path)) or (torch.ones(1,60,5,3), "urls", "id", "metadata"))
     m.KlingImage4Preview_TextToImage().generate({}, "test photo", "2k", "1:1", 1, True)
     assert calls[-1][1] == "/image-generation/kling-4.0"
     img = torch.ones((1, 320, 320, 3))
@@ -114,6 +114,15 @@ def test_long_image_split_sections_keeps_all_original_pixels():
     restored = chunks.reshape(1, 12, 5, 3)[:, :11]
     assert torch.equal(restored, src)
     assert torch.equal(chunks[-1, -1], src[0, -1])
+
+
+def test_split_remainder_distribution_does_not_drop_rows():
+    # H=10, N=6 used to create empty chunks with a fixed ceil-height stride.
+    src = torch.arange(10, dtype=torch.float32).reshape(1,10,1,1).expand(1,10,4,3)
+    tiles = m._split_long_image_batch(src, 6)
+    assert tiles.shape == (6, 2, 4, 3)
+    restored = torch.cat([tiles[i,:2 if i < 4 else 1] for i in range(6)], dim=0)
+    assert torch.equal(restored, src[0])
 
 
 def test_split_long_image_is_offline_and_adjustable(monkeypatch):

@@ -171,17 +171,16 @@ def _split_long_image_batch(images: torch.Tensor, section_count: int = 6) -> tor
     batch, height, width, channels = images.shape
     if batch < 1 or width < 1 or channels not in (3, 4) or height < count:
         raise ValueError("The input image must have sufficient height for the requested sections.")
-    tile_height = (height + count - 1) // count
+    rows_per_section, longer_sections = divmod(height, count)
+    tile_height = rows_per_section + (1 if longer_sections else 0)
     result = []
     for image in images:
         for idx in range(count):
-            start = idx * tile_height
-            end = min(start + tile_height, height)
-            tile = image[start:end]
-            if tile.shape[0] == 0:
-                # Avoid returning empty images for a request with more sections
-                # than the padded height permits.
-                raise ValueError("Too many sections for the source image height.")
+            # Distribute any leftover rows among the earliest sections.
+            # For example, H=10 and count=6 -> heights 2,2,2,2,1,1.
+            start = idx * rows_per_section + min(idx, longer_sections)
+            section_height = rows_per_section + (1 if idx < longer_sections else 0)
+            tile = image[start:start + section_height]
             if tile.shape[0] < tile_height:
                 # Duplicate the edge pixel row to keep all sections equal-height;
                 # the full original image remains unchanged on the main output.
