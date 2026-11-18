@@ -789,3 +789,29 @@ image resource packs may not cover Image 4.0; check your account balance.
 Official release notes: https://kling.ai/document-api/updates/api
 Provider-native schema example (third party, not Kling's developer reference):
 https://api-cn.apimaster.ai/docs/en/api/images/kling-image-4.0
+
+
+## 2026-11-18: Multi-image section output for Long Image
+
+The **Kling Image 4.0 REST - Long Image** node now has a fifth output,
+`sections` (ComfyUI IMAGE batch), while keeping its original four
+outputs and their indexes unchanged. A new optional `section_count`
+control selects 2–18 equal-height full-width slices (default 6).
+Connect `sections` to ComfyUI's `Save Image` node to export separate
+numbered image files. `image` still returns the full tall page.
+
+Kling's Long Image API produces one tall composition. The sections
+are **local crops of that image**, not multiple independently generated
+pictures or semantically isolated layers. The last slice is edge-padded
+by up to `section_count-1` rows so ComfyUI can batch equal-sized images.
+
+The new **Kling Image 4.0 - Split Long Image (Local)** utility node
+takes any previously generated IMAGE and outputs the same sections
+batch without calling Kling. Changing the section count there
+does **not** spend additional API credits. This is recommended for
+experimenting with crop count and Save Image settings.
+
+Older saved Long Image workflows should retain their original output
+links (ports 0–3). Refresh ComfyUI/recreate the node to expose the new
+`sections` port and optional control. The existing Image Edit, Series,
+and Video nodes are unchanged.

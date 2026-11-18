@@ -104,3 +104,49 @@ def test_native_task_polling_single_submission(monkeypatch):
     assert len(calls) == 1
     assert out[0].shape == (1,16,16,3)
     assert out[2] == "task_123"
+
+
+def test_long_image_split_sections_keeps_all_original_pixels():
+    # 11 rows / 3 sections => each tile 4 rows, last tile pads one row.
+    src = torch.arange(11, dtype=torch.float32).reshape(1, 11, 1, 1).expand(1, 11, 5, 3)
+    chunks = m._split_long_image_batch(src, 3)
+    assert tuple(chunks.shape) == (3, 4, 5, 3)
+    restored = chunks.reshape(1, 12, 5, 3)[:, :11]
+    assert torch.equal(restored, src)
+    assert torch.equal(chunks[-1, -1], src[0, -1])
+
+
+def test_split_long_image_is_offline_and_adjustable(monkeypatch):
+    monkeypatch.setattr(m, "_client_from_auth", lambda auth: pytest.fail("API called"))
+    local_image = torch.arange(120, dtype=torch.float32).reshape(1, 12, 10, 1).expand(1,12,10,3)
+    tiles, n = m.KlingImage4_SplitLongImage().split(local_image, 6)
+    assert n == 6
+    assert tuple(tiles.shape) == (6, 2, 10, 3)
+
+
+def test_long_image_returns_full_image_and_sections_without_changing_original_output_order(monkeypatch):
+    source = torch.arange(24, dtype=torch.float32).reshape(1, 8, 3, 1).expand(1,8,3,3)
+    monkeypatch.setattr(m, "_run", lambda *args: (source, "urls", "id", "metadata"))
+    outputs = m.KlingImage4Preview_LongImage().generate(
+        {}, "lookbook page", "webpage", "long", "2k", True, section_count=4)
+    assert len(outputs) == 5
+    assert outputs[0] is source
+    assert outputs[1:4] == ("urls", "id", "metadata")
+    assert tuple(outputs[4].shape) == (4, 2, 3, 3)
+    assert m.KlingImage4Preview_LongImage.RETURN_NAMES[-1] == "sections"
+
+
+def test_split_long_image_rejects_more_sections_than_height():
+    with pytest.raises(ValueError, match="height"):
+        m._split_long_image_batch(torch.zeros(1, 3, 8, 3), 6)
+
+
+def test_existing_long_image_generate_without_section_count_still_works(monkeypatch):
+    monkeypatch.setattr(
+        m, "_run",
+        lambda *args: (torch.ones(1,60,5,3), "urls", "id", "metadata")
+    )
+    out = m.KlingImage4Preview_LongImage().generate(
+        {}, "landing page", "webpage", "long", "2k", True
+    )
+    assert out[4].shape[0] == 6

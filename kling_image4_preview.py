@@ -155,6 +155,42 @@ def _run(auth: Dict[str, Any], body: Dict[str, Any], enabled: bool, api_path: st
     return (torch.cat(tensors, dim=0), json.dumps(urls, ensure_ascii=False),
             task_id, json.dumps(task, ensure_ascii=False))
 
+def _split_long_image_batch(images: torch.Tensor, section_count: int = 6) -> torch.Tensor:
+    """Divide each tall image into a batch of full-width sections, top to bottom.
+
+    Long Image returns *one* tall composition. These are local crops, not new
+    or independently generated Kling images. Preserve every source pixel; only
+    pad the last tile by repeating its bottom row if the height is indivisible.
+    ComfyUI IMAGE batches require all tiles to share the same H/W.
+    """
+    if not isinstance(images, torch.Tensor) or images.ndim != 4:
+        raise ValueError("long_image must be a ComfyUI IMAGE batch [B,H,W,C].")
+    count = int(section_count)
+    if count < 2 or count > 18:
+        raise ValueError("section_count must be between 2 and 18.")
+    batch, height, width, channels = images.shape
+    if batch < 1 or width < 1 or channels not in (3, 4) or height < count:
+        raise ValueError("The input image must have sufficient height for the requested sections.")
+    tile_height = (height + count - 1) // count
+    result = []
+    for image in images:
+        for idx in range(count):
+            start = idx * tile_height
+            end = min(start + tile_height, height)
+            tile = image[start:end]
+            if tile.shape[0] == 0:
+                # Avoid returning empty images for a request with more sections
+                # than the padded height permits.
+                raise ValueError("Too many sections for the source image height.")
+            if tile.shape[0] < tile_height:
+                # Duplicate the edge pixel row to keep all sections equal-height;
+                # the full original image remains unchanged on the main output.
+                padding = tile[-1:].expand(tile_height - tile.shape[0], -1, -1)
+                tile = torch.cat([tile, padding], dim=0)
+            result.append(tile)
+    return torch.stack(result, dim=0).contiguous()
+
+
 def _optional_refs():
     return {f"reference_{i}": ("IMAGE",) for i in range(1, 11)}
 
@@ -261,14 +297,21 @@ class KlingImage4Preview_LongImage:
             "length": (["short", "medium", "long"], {"default": "medium"}),
             "resolution": (["1k", "2k"], {"default": "2k"}),
             "enable_unverified_rest_preview": (PREVIEW_REQUEST_MODES, {"default": PREVIEW_REQUEST_MODES[0], "tooltip": GUIDANCE}),
-        }, "optional": {f"reference_{i}": ("IMAGE",) for i in range(1, 4)}}
-    RETURN_TYPES = ("IMAGE", "STRING", "STRING", "STRING")
-    RETURN_NAMES = ("image", "urls_json", "task_id", "metadata_json")
+        }, "optional": {
+            **{f"reference_{i}": ("IMAGE",) for i in range(1, 4)},
+            "section_count": ("INT", {
+                "default": 6, "min": 2, "max": 18, "step": 1,
+                "tooltip": "Locally split the returned long image into 2-18 individual sections. No extra Kling request.",
+            }),
+        }}
+    # Append a new output to keep the existing 0-3 output indices stable.
+    RETURN_TYPES = ("IMAGE", "STRING", "STRING", "STRING", "IMAGE")
+    RETURN_NAMES = ("image", "urls_json", "task_id", "metadata_json", "sections")
     FUNCTION = "generate"
     CATEGORY = "Kling Image 4.0 REST/Images"
 
     def generate(self, auth, prompt, skill, length, resolution,
-                 enable_unverified_rest_preview, **kwargs):
+                 enable_unverified_rest_preview, section_count=6, **kwargs):
         refs = _references([kwargs.get(f"reference_{i}") for i in range(1, 4)], max_count=3)
         settings = {"skill": skill, "resolution": resolution}
         if skill == "ecommerce":
@@ -286,7 +329,34 @@ class KlingImage4Preview_LongImage:
             "contents": [{"type": "prompt", "text": _validate_prompt(prompt)}] + refs,
             "settings": settings,
         }
-        return _run(auth, body, _preview_enabled(enable_unverified_rest_preview), LONG_IMAGE_PATH)
+        full_image, urls_json, task_id, metadata_json = _run(
+            auth, body, _preview_enabled(enable_unverified_rest_preview), LONG_IMAGE_PATH
+        )
+        sections = _split_long_image_batch(full_image, section_count)
+        return full_image, urls_json, task_id, metadata_json, sections
+
+
+class KlingImage4_SplitLongImage:
+    """Re-split an existing long image locally, without another paid API call."""
+
+    @classmethod
+    def INPUT_TYPES(cls):
+        return {"required": {
+            "long_image": ("IMAGE",),
+            "section_count": ("INT", {
+                "default": 6, "min": 2, "max": 18, "step": 1,
+                "tooltip": "Number of equally tall top-to-bottom crops in the IMAGE batch.",
+            }),
+        }}
+
+    RETURN_TYPES = ("IMAGE", "INT")
+    RETURN_NAMES = ("sections", "actual_sections")
+    FUNCTION = "split"
+    CATEGORY = "Kling Image 4.0 REST/Utilities"
+
+    def split(self, long_image, section_count):
+        pieces = _split_long_image_batch(long_image, section_count)
+        return pieces, int(pieces.shape[0])
 
 
 NODE_CLASS_MAPPINGS = {
@@ -294,10 +364,12 @@ NODE_CLASS_MAPPINGS = {
     "KlingImage4Preview_ImageEdit": KlingImage4Preview_ImageEdit,
     "KlingImage4Preview_Series": KlingImage4Preview_Series,
     "KlingImage4Preview_LongImage": KlingImage4Preview_LongImage,
+    "KlingImage4_SplitLongImage": KlingImage4_SplitLongImage,
 }
 NODE_DISPLAY_NAME_MAPPINGS = {
     "KlingImage4Preview_TextToImage": "Kling Image 4.0 REST - Text to Image",
     "KlingImage4Preview_ImageEdit": "Kling Image 4.0 REST - Image Edit",
     "KlingImage4Preview_Series": "Kling Image 4.0 REST - Image Series",
     "KlingImage4Preview_LongImage": "Kling Image 4.0 REST - Long Image",
+    "KlingImage4_SplitLongImage": "Kling Image 4.0 - Split Long Image (Local)",
 }
