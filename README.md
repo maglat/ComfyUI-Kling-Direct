@@ -28,9 +28,9 @@ As of **2026-10-26** the public Kling product/API split is:
 | Image | Kling Image 3.0 | Yes |
 | Image | Kling Image 3.0 Omni | Yes |
 | Image | Kling Image O1 | Yes |
-| Image | Kling Image 4.0 | **Not officially released yet** |
+| Image | Kling Image 4.0 | **Released 2026-11-18. Native REST contract NOT publicly verified**; experimental preview nodes on this branch |
 
-Kling 4.0 is currently a **video-generation family**. Kling has not publicly released a production Image 4.0 model/API at the time of this update.
+Kling Image 4.0 has been publicly released. Kling's Nov 18 announcement says it is available via API for developers, but the native Image 4.0 REST endpoint/schema and entitlement for existing API keys are not yet independently verified. The REST preview nodes are deliberately opt-in and may need changes.
 
 The new Image CLI nodes are deliberately **not hard-coded to Image 3.0**. They validate the model name against the live output of `kling who_am_i`. If Kling later exposes a model such as `kling-image-v4_0`, the same nodes can use it without waiting for another hard-coded dropdown update.
 
@@ -733,3 +733,22 @@ https://github.com/maglat/ComfyUI-Kling-Direct
 # License
 
 MIT - see `LICENSE`.
+
+
+## Experimental Kling Image 4.0 REST nodes (feature branch only, November 18, 2026)
+
+Four opt-in nodes have been added: **Text to Image**, **Image Edit** (up to 10 references),
+**Image Series** (2–10 / auto), and **Long Image** (e-commerce/webpage).
+They accept the existing `KLING_AUTH` output and use the provider-native field naming
+reported by Picsart: `result_type`, `image_list`, `series_amount`, etc.
+**IMPORTANT: the route `/v1/images/kling-v4-image` is an unverified inference from
+Picsart's `kling/v1/images/kling-v4-image` provider-native workflow, not an
+endpoint published by Kling.** The response task format and Base64 reference
+handling are also unverified. The nodes refuse to submit until the
+`enable_unverified_rest_preview` checkbox is enabled. Do not activate on
+production/paid workflows before Kling publishes or confirms the contract.
+This branch does not change any existing Kling 3.0/4.0 production nodes.
+
+Sources: https://kling.ai/blog/kling-image-4-stunningly-realistic-sharp-precise ;
+https://kling.ai/document-api/apiReference/model/imageGeneration ;
+https://picsart.com/api-platform/models/kling-image-4.0 .
