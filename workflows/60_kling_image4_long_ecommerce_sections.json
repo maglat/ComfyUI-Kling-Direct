@@ -1,0 +1,532 @@
+{
+  "id": "4b2586d9-ef7a-4f37-9f0c-9207bb685e89",
+  "revision": 0,
+  "last_node_id": 8,
+  "last_link_id": 6,
+  "nodes": [
+    {
+      "id": 1,
+      "type": "Kling3Full_Auth",
+      "pos": [
+        50,
+        180
+      ],
+      "size": [
+        390,
+        215
+      ],
+      "flags": {},
+      "order": 0,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "api_key",
+          "type": "STRING",
+          "widget": {
+            "name": "api_key"
+          },
+          "link": null
+        },
+        {
+          "name": "base_url",
+          "type": "STRING",
+          "widget": {
+            "name": "base_url"
+          },
+          "link": null
+        },
+        {
+          "name": "debug",
+          "type": "BOOLEAN",
+          "widget": {
+            "name": "debug"
+          },
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "name": "auth",
+          "type": "KLING_AUTH",
+          "links": [
+            1
+          ],
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "Kling3Full_Auth"
+      },
+      "widgets_values": [
+        "",
+        "https://api-singapore.klingai.com",
+        false
+      ],
+      "title": "01  Kling API · key / auth"
+    },
+    {
+      "id": 2,
+      "type": "LoadImage",
+      "pos": [
+        50,
+        465
+      ],
+      "size": [
+        390,
+        315
+      ],
+      "flags": {},
+      "order": 1,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "image",
+          "type": "COMBO",
+          "widget": {
+            "name": "image"
+          },
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "name": "IMAGE",
+          "type": "IMAGE",
+          "links": [
+            2
+          ],
+          "slot_index": 0
+        },
+        {
+          "name": "MASK",
+          "type": "MASK",
+          "links": [],
+          "slot_index": 1
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "LoadImage"
+      },
+      "widgets_values": [
+        ""
+      ],
+      "title": "02  Load product reference image"
+    },
+    {
+      "id": 3,
+      "type": "KlingImage4Preview_LongImage",
+      "pos": [
+        535,
+        170
+      ],
+      "size": [
+        545,
+        475
+      ],
+      "flags": {},
+      "order": 2,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "auth",
+          "type": "KLING_AUTH",
+          "link": 1
+        },
+        {
+          "name": "prompt",
+          "type": "STRING",
+          "widget": {
+            "name": "prompt"
+          },
+          "link": null
+        },
+        {
+          "name": "skill",
+          "type": "COMBO",
+          "widget": {
+            "name": "skill"
+          },
+          "link": null
+        },
+        {
+          "name": "length",
+          "type": "COMBO",
+          "widget": {
+            "name": "length"
+          },
+          "link": null
+        },
+        {
+          "name": "resolution",
+          "type": "COMBO",
+          "widget": {
+            "name": "resolution"
+          },
+          "link": null
+        },
+        {
+          "name": "enable_unverified_rest_preview",
+          "type": "COMBO",
+          "widget": {
+            "name": "enable_unverified_rest_preview"
+          },
+          "link": null
+        },
+        {
+          "name": "reference_1",
+          "type": "IMAGE",
+          "link": 2
+        },
+        {
+          "name": "reference_2",
+          "type": "IMAGE",
+          "link": null
+        },
+        {
+          "name": "reference_3",
+          "type": "IMAGE",
+          "link": null
+        },
+        {
+          "name": "section_count",
+          "type": "INT",
+          "widget": {
+            "name": "section_count"
+          },
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "name": "image",
+          "type": "IMAGE",
+          "links": [
+            3,
+            4
+          ],
+          "slot_index": 0
+        },
+        {
+          "name": "urls_json",
+          "type": "STRING",
+          "links": [],
+          "slot_index": 1
+        },
+        {
+          "name": "task_id",
+          "type": "STRING",
+          "links": [],
+          "slot_index": 2
+        },
+        {
+          "name": "metadata_json",
+          "type": "STRING",
+          "links": [],
+          "slot_index": 3
+        },
+        {
+          "name": "sections",
+          "type": "IMAGE",
+          "links": [
+            5,
+            6
+          ],
+          "slot_index": 4
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "KlingImage4Preview_LongImage"
+      },
+      "widgets_values": [
+        "Create a premium vertical e-commerce product story for the women's lingerie bra shown in @image_1. Use the uploaded product photograph as the primary visual reference. Preserve the product's exact color, silhouette, cup shape, straps, lace texture and construction wherever visible. Create a cohesive luxury editorial design in warm ivory, muted taupe and soft charcoal with refined photographic lighting, realistic material detail and elegant negative space. Arrange a long scrolling page with six visually distinct zones: (1) impactful hero product introduction, (2) refined fabric and lace close-up, (3) support and fit visual, (4) tasteful fashion-editorial styling scene, (5) construction detail and craftsmanship macro, (6) minimal closing product card. Consistent art direction, highly photorealistic, premium online store presentation. Do not invent prices, technical certifications, product claims, brand names or logos. Prioritize visual storytelling over text; use minimal readable headings if needed.",
+        "ecommerce",
+        "medium",
+        "2k",
+        "BLOCKED - do not send API request",
+        6
+      ],
+      "title": "03  Kling Image 4.0 · Long E-commerce"
+    },
+    {
+      "id": 4,
+      "type": "PreviewImage",
+      "pos": [
+        1170,
+        160
+      ],
+      "size": [
+        400,
+        300
+      ],
+      "flags": {},
+      "order": 3,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "images",
+          "type": "IMAGE",
+          "link": 3
+        }
+      ],
+      "outputs": [],
+      "properties": {
+        "Node name for S&R": "PreviewImage"
+      },
+      "widgets_values": [],
+      "title": "04  Preview · entire long page"
+    },
+    {
+      "id": 5,
+      "type": "SaveImage",
+      "pos": [
+        1170,
+        545
+      ],
+      "size": [
+        400,
+        160
+      ],
+      "flags": {},
+      "order": 4,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "images",
+          "type": "IMAGE",
+          "link": 4
+        },
+        {
+          "name": "filename_prefix",
+          "type": "STRING",
+          "widget": {
+            "name": "filename_prefix"
+          },
+          "link": null
+        }
+      ],
+      "outputs": [],
+      "properties": {
+        "Node name for S&R": "SaveImage"
+      },
+      "widgets_values": [
+        "Kling4_LongImage/Ecommerce_Full"
+      ],
+      "title": "05  Save · entire long page"
+    },
+    {
+      "id": 6,
+      "type": "PreviewImage",
+      "pos": [
+        1655,
+        160
+      ],
+      "size": [
+        400,
+        300
+      ],
+      "flags": {},
+      "order": 5,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "images",
+          "type": "IMAGE",
+          "link": 5
+        }
+      ],
+      "outputs": [],
+      "properties": {
+        "Node name for S&R": "PreviewImage"
+      },
+      "widgets_values": [],
+      "title": "06  Preview · 6 sections"
+    },
+    {
+      "id": 7,
+      "type": "SaveImage",
+      "pos": [
+        1655,
+        545
+      ],
+      "size": [
+        400,
+        160
+      ],
+      "flags": {},
+      "order": 6,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "images",
+          "type": "IMAGE",
+          "link": 6
+        },
+        {
+          "name": "filename_prefix",
+          "type": "STRING",
+          "widget": {
+            "name": "filename_prefix"
+          },
+          "link": null
+        }
+      ],
+      "outputs": [],
+      "properties": {
+        "Node name for S&R": "SaveImage"
+      },
+      "widgets_values": [
+        "Kling4_LongImage/Ecommerce_Section"
+      ],
+      "title": "07  Save · six separate PNGs"
+    },
+    {
+      "id": 8,
+      "type": "Note",
+      "pos": [
+        50,
+        865
+      ],
+      "size": [
+        2000,
+        335
+      ],
+      "flags": {},
+      "order": 7,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [],
+      "properties": {
+        "Node name for S&R": "Note"
+      },
+      "widgets_values": [
+        "EXAMPLE · KLING IMAGE 4.0 LONG IMAGE → 6 SECTIONS\n\n1. Open \"Kling 3.0 Full · API Key\": enter your own Kling API key OR leave blank if KLING_API_KEY is configured on the server. Never share a workflow with a real key embedded.\n2. Select a PRODUCT PHOTO in the Load Image node. Ecommerce mode requires at least one reference_1 image (prefer a clear 300px+ studio product image).\n3. In Long Image, leave skill=ecommerce; choose length=medium and resolution=2k. Set the preview dropdown to ALLOW only when you are ready for a possibly billable API request.\n4. Press Queue. The image output is the FULL LONG PAGE. The sections output is a batch of 6 equally tall local crops (controlled by section_count).\n5. Each Save Image node writes to a subfolder of ComfyUI/output. Six section files are saved automatically; no six separate Kling requests.\n\nNOTE: sections are CROPS of the same page, not independently generated or semantically separated images. Changing section_count via the local Split Long Image utility does not consume Kling credits. Generated copy/claims need human review."
+      ],
+      "title": "HOW TO USE · Long Image to individual sections"
+    }
+  ],
+  "links": [
+    [
+      1,
+      1,
+      0,
+      3,
+      0,
+      "KLING_AUTH"
+    ],
+    [
+      2,
+      2,
+      0,
+      3,
+      6,
+      "IMAGE"
+    ],
+    [
+      3,
+      3,
+      0,
+      4,
+      0,
+      "IMAGE"
+    ],
+    [
+      4,
+      3,
+      0,
+      5,
+      0,
+      "IMAGE"
+    ],
+    [
+      5,
+      3,
+      4,
+      6,
+      0,
+      "IMAGE"
+    ],
+    [
+      6,
+      3,
+      4,
+      7,
+      0,
+      "IMAGE"
+    ]
+  ],
+  "groups": [
+    {
+      "title": "01 · AUTH + PRODUCT IMAGE",
+      "bounding": [
+        25,
+        115,
+        445,
+        705
+      ],
+      "color": "#3F789E",
+      "font_size": 24,
+      "locked": false
+    },
+    {
+      "title": "02 · GENERATE LONG PAGE",
+      "bounding": [
+        495,
+        115,
+        625,
+        565
+      ],
+      "color": "#704ca0",
+      "font_size": 24,
+      "locked": false
+    },
+    {
+      "title": "03 · SAVE FULL LONG IMAGE",
+      "bounding": [
+        1130,
+        115,
+        485,
+        630
+      ],
+      "color": "#568e6d",
+      "font_size": 24,
+      "locked": false
+    },
+    {
+      "title": "04 · SAVE SIX SECTIONS",
+      "bounding": [
+        1620,
+        115,
+        480,
+        630
+      ],
+      "color": "#568e6d",
+      "font_size": 24,
+      "locked": false
+    },
+    {
+      "title": "READ ME",
+      "bounding": [
+        25,
+        830,
+        2060,
+        400
+      ],
+      "color": "#c18a3d",
+      "font_size": 24,
+      "locked": false
+    }
+  ],
+  "config": {},
+  "extra": {
+    "ds": {
+      "scale": 0.75,
+      "offset": [
+        -20,
+        55
+      ]
+    },
+    "description": "Kling Image 4.0 REST Long Image e-commerce example: input product photo, generate a long page, save it whole and as six local cropped PNG files. No API key included.",
+    "pack": "ComfyUI-Kling-Direct"
+  },
+  "version": 0.4
+}
