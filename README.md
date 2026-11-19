@@ -815,3 +815,35 @@ Older saved Long Image workflows should retain their original output
 links (ports 0–3). Refresh ComfyUI/recreate the node to expose the new
 `sections` port and optional control. The existing Image Edit, Series,
 and Video nodes are unchanged.
+
+
+## Kling CPU Layer Tools (optional, no GPU or extra API)
+
+Five nodes are integrated directly into this extension in the
+`Kling CPU Layer Tools` category:
+
+- **Remove Background**: free CPU model via rembg, returns RGB cutout + MASK.
+- **Extract Layer from Mask**: separate original IMAGE into an RGB layer + MASK.
+- **Move Layer**: offset a masked layer by X/Y pixels.
+- **Inpaint Background (OpenCV)**: approximate the hidden pixels underneath
+  the original object; not photorealistic for large or complex regions.
+- **Composite Layers**: overlay up to four image + mask pairs on a background.
+
+The last four run using the repository's existing dependencies. For automatic
+foreground masking, install the optional rembg CPU packages into the **same**
+Python environment that runs ComfyUI:
+
+```bash
+cd /root/comfyui/custom_nodes/ComfyUI-Kling-Direct
+/root/comfyui/venv/bin/python -m pip install -r requirements-cpu-layers.txt
+```
+
+Then restart ComfyUI. The first rembg run may download model weights; after
+that, inference runs on CPU. This is not a Kling/Image 4 proprietary layer
+API: it performs standard RGB/mask operations. Extracted objects have
+separate masks (not Photoshop-compatible vector layers), automatic text
+editing isn't provided, and missing background details must be approximated.
+
+Example: `workflows/61_kling_cpu_layer_editor_example.json`.
+Select a local Kling output in Load Image before queuing. There are no keys
+or API calls in this example.
