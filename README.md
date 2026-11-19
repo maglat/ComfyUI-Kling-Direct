@@ -847,3 +847,38 @@ editing isn't provided, and missing background details must be approximated.
 Example: `workflows/61_kling_cpu_layer_editor_example.json`.
 Select a local Kling output in Load Image before queuing. There are no keys
 or API calls in this example.
+
+
+## Easy Layers: visual editing with two clicks (recommended)
+
+Use the new **Kling - Easy Layers (Visual Editor)** node instead of wiring
+Remove Background → Extract Layer → Move Layer → Inpaint → Composite by hand.
+It integrates with ComfyUI's native **Create Layered Image** compositor.
+
+Workflow: `workflows/62_kling_easy_layers_visual_editor.json`.
+
+1. Choose an existing image using Load Image (or an Image 4.0 output).
+2. Run **Kling - Easy Layers** in **Auto: product/person (CPU)** mode.
+3. Open the native compositor's visual editor and drag/move/scale/hide the
+   isolated object; save the composition.
+4. Queue again, and the Save Image node writes the edited result.
+
+The Easy Layers node returns `LAYERS` (native version-1 layer document),
+a preview IMAGE, and a `MASK` (1=foreground selection).
+The compositor receives two named layers: an approximated background and an
+independently movable foreground. Its mask uses 1=transparent, the reverse of
+this node's selection output. Use **Manual: painted mask** and connect a painted
+Load Image MASK when the automatic CPU model selects the wrong object.
+
+For Image Series IMAGE batches, optional `image_number` selects one frame
+(1-based) to edit. It does not resend a generation request.
+
+Automatic segmentation requires the **optional** rembg/onnxruntime CPU packages
+(`requirements-cpu-layers.txt`); manual selection works without rembg.
+The OpenCV background repair is approximate and can look artificial in large
+or complex areas. Only foreground/background raster separation is provided;
+it does not create true editable text, vector, or separate individual objects.
+
+The native visual editor is provided by ComfyUI 0.31+ through the
+`ImageCompositor` node, displayed as "Create Layered Image". If the node is
+missing, update your local ComfyUI and frontend. No custom frontend JS is used.

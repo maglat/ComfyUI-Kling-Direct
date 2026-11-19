@@ -246,7 +246,105 @@ class KlingCPUCompositeLayers:
         return (result,)
 
 
+class KlingCPUEasyLayers:
+    """One-step image-to-editable-layer-stack adapter for ComfyUI's built-in compositor.
+
+    Outputs the native LAYERS document accepted by core ImageCompositor
+    ("Create Layered Image"). No browser extension or extra inference API.
+    The CPU background-removal model is only required for Auto mode.
+    """
+    @classmethod
+    def INPUT_TYPES(cls):
+        return {
+            "required": {
+                "image": ("IMAGE",),
+                "selection": (
+                    ["Auto: product/person (CPU)", "Manual: painted mask"],
+                    {"default": "Auto: product/person (CPU)",
+                     "tooltip": "Auto isolates the main foreground; Manual uses your painted mask."},
+                ),
+                "background": (
+                    ["Repair behind object (CPU)", "Keep original background"],
+                    {"default": "Repair behind object (CPU)",
+                     "tooltip": "Repair uses local OpenCV. Keep original is quicker but may leave a duplicate when moving the foreground."},
+                ),
+            },
+            "optional": {
+                "mask": ("MASK", {"tooltip": "Optional hand-painted MASK (white = selected), required only for Manual mode."}),
+                "image_number": ("INT", {"default": 1, "min": 1, "max": 1000, "step": 1,
+                                        "tooltip": "For image-series batches, choose which image to edit (1 = first)."}),
+            },
+        }
+
+    RETURN_TYPES = ("LAYERS", "IMAGE", "MASK")
+    RETURN_NAMES = ("editable_layers", "preview", "selection_mask")
+    FUNCTION = "prepare"
+    CATEGORY = "Kling CPU Layer Tools/Easy"
+
+    def prepare(self, image, selection="Auto: product/person (CPU)",
+                background="Repair behind object (CPU)", mask=None, image_number=1):
+        images = _image_batch(image)
+        index = int(image_number) - 1
+        if index < 0 or index >= images.shape[0]:
+            raise ValueError(
+                f"Image number {image_number} is outside the batch (1–{images.shape[0]})."
+            )
+        source = images[index:index+1, ..., :3].contiguous()
+        if selection == "Manual: painted mask":
+            if mask is None:
+                raise ValueError(
+                    "Manual selection requires a painted MASK. "
+                    "In Load Image, right-click the image and choose Open in MaskEditor, "
+                    "paint the object white, then connect its MASK output."
+                )
+            masks = _mask_batch(mask)
+            if masks.shape[0] not in (1, images.shape[0]):
+                raise ValueError("Mask batch must contain one mask or one mask per image.")
+            chosen = masks[0:1] if masks.shape[0] == 1 else masks[index:index+1]
+            alpha = _fit_mask(chosen, source)
+        elif selection == "Auto: product/person (CPU)":
+            # RemBG is optional for the node-pack; this mode loads it lazily.
+            _, alpha = KlingCPURemoveBackground().run(
+                source, model="u2netp", alpha_matting=False, mask_blur=0, threshold=0.
+            )
+        else:
+            raise ValueError("Unknown selection mode.")
+        alpha = alpha.clamp(0., 1.).contiguous()
+
+        if background == "Repair behind object (CPU)":
+            bg, = KlingCPUInpaintBackground().run(
+                source, alpha, mask_expand_px=5, inpaint_radius=5
+            )
+        elif background == "Keep original background":
+            bg = source.clone()
+        else:
+            raise ValueError("Unknown background mode.")
+
+        # IMPORTANT: native ComfyUI LAYERS masks use 1=transparent,
+        # while this node's output selection_mask uses 1=selected.
+        # Reverse it before creating the native layer document.
+        transparent = (1. - alpha).contiguous()
+
+        # The compositor requires real source RGB for soft-edged alpha.
+        # Do not premultiply foreground color by the mask.
+        height, width = source.shape[1:3]
+        document = {
+            "version": 1,
+            "canvas": (int(width), int(height)),
+            "layers": [
+                {"type": "raster", "image": bg, "x": 0, "y": 0,
+                 "z_index": 0, "name": "01 Background (editable)"},
+                {"type": "raster", "image": source, "mask": transparent,
+                 "x": 0, "y": 0, "z_index": 1,
+                 "name": "02 Object — drag / resize / hide"},
+            ],
+        }
+        composite = source * alpha.unsqueeze(-1) + bg * (1. - alpha.unsqueeze(-1))
+        return document, composite.clamp(0., 1.), alpha
+
+
 NODE_CLASS_MAPPINGS = {
+    "KlingCPUEasyLayers": KlingCPUEasyLayers,
     "KlingCPURemoveBackground": KlingCPURemoveBackground,
     "KlingCPUExtractLayerFromMask": KlingCPUExtractLayerFromMask,
     "KlingCPUMoveLayer": KlingCPUMoveLayer,
@@ -254,6 +352,7 @@ NODE_CLASS_MAPPINGS = {
     "KlingCPUCompositeLayers": KlingCPUCompositeLayers,
 }
 NODE_DISPLAY_NAME_MAPPINGS = {
+    "KlingCPUEasyLayers": "Kling - Easy Layers (Visual Editor)",
     "KlingCPURemoveBackground": "Kling CPU - Remove Background",
     "KlingCPUExtractLayerFromMask": "Kling CPU - Extract Layer from Mask",
     "KlingCPUMoveLayer": "Kling CPU - Move Layer",

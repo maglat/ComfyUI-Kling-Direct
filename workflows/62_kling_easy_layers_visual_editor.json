@@ -1,0 +1,373 @@
+{
+  "id": "33a04ddd-dcd5-4cd0-954f-74c9115ccb90",
+  "revision": 0,
+  "last_node_id": 6,
+  "last_link_id": 4,
+  "nodes": [
+    {
+      "id": 1,
+      "type": "LoadImage",
+      "pos": [
+        40,
+        160
+      ],
+      "size": [
+        370,
+        330
+      ],
+      "flags": {},
+      "order": 0,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "image",
+          "type": "COMBO",
+          "link": null,
+          "widget": {
+            "name": "image"
+          }
+        }
+      ],
+      "outputs": [
+        {
+          "name": "IMAGE",
+          "type": "IMAGE",
+          "links": [
+            1
+          ],
+          "slot_index": 0
+        },
+        {
+          "name": "MASK",
+          "type": "MASK",
+          "links": [],
+          "slot_index": 1
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "LoadImage"
+      },
+      "widgets_values": [
+        ""
+      ],
+      "title": "01 Choose your Kling image"
+    },
+    {
+      "id": 2,
+      "type": "KlingCPUEasyLayers",
+      "pos": [
+        495,
+        160
+      ],
+      "size": [
+        450,
+        240
+      ],
+      "flags": {},
+      "order": 1,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "image",
+          "type": "IMAGE",
+          "link": 1
+        },
+        {
+          "name": "selection",
+          "type": "COMBO",
+          "link": null,
+          "widget": {
+            "name": "selection"
+          }
+        },
+        {
+          "name": "background",
+          "type": "COMBO",
+          "link": null,
+          "widget": {
+            "name": "background"
+          }
+        },
+        {
+          "name": "mask",
+          "type": "MASK",
+          "link": null
+        },
+        {
+          "name": "image_number",
+          "type": "INT",
+          "link": null,
+          "widget": {
+            "name": "image_number"
+          }
+        }
+      ],
+      "outputs": [
+        {
+          "name": "editable_layers",
+          "type": "LAYERS",
+          "links": [
+            2
+          ],
+          "slot_index": 0
+        },
+        {
+          "name": "preview",
+          "type": "IMAGE",
+          "links": [
+            3
+          ],
+          "slot_index": 1
+        },
+        {
+          "name": "selection_mask",
+          "type": "MASK",
+          "links": [],
+          "slot_index": 2
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "KlingCPUEasyLayers"
+      },
+      "widgets_values": [
+        "Auto: product/person (CPU)",
+        "Repair behind object (CPU)",
+        1
+      ],
+      "title": "02 Auto isolate • editable layers"
+    },
+    {
+      "id": 3,
+      "type": "ImageCompositor",
+      "pos": [
+        1050,
+        160
+      ],
+      "size": [
+        470,
+        380
+      ],
+      "flags": {},
+      "order": 2,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "layers",
+          "type": "LAYERS",
+          "link": 2
+        }
+      ],
+      "outputs": [
+        {
+          "name": "IMAGE",
+          "type": "IMAGE",
+          "links": [
+            4
+          ],
+          "slot_index": 0
+        },
+        {
+          "name": "MASK",
+          "type": "MASK",
+          "links": [],
+          "slot_index": 1
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "ImageCompositor"
+      },
+      "widgets_values": [
+        {}
+      ],
+      "title": "03 Open visual layer editor"
+    },
+    {
+      "id": 4,
+      "type": "SaveImage",
+      "pos": [
+        1630,
+        160
+      ],
+      "size": [
+        375,
+        150
+      ],
+      "flags": {},
+      "order": 3,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "images",
+          "type": "IMAGE",
+          "link": 4
+        },
+        {
+          "name": "filename_prefix",
+          "type": "STRING",
+          "link": null,
+          "widget": {
+            "name": "filename_prefix"
+          }
+        }
+      ],
+      "outputs": [],
+      "properties": {
+        "Node name for S&R": "SaveImage"
+      },
+      "widgets_values": [
+        "Kling_Easy_Layers/Edited"
+      ],
+      "title": "04 Save your edited image"
+    },
+    {
+      "id": 5,
+      "type": "PreviewImage",
+      "pos": [
+        1045,
+        620
+      ],
+      "size": [
+        360,
+        280
+      ],
+      "flags": {},
+      "order": 4,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "images",
+          "type": "IMAGE",
+          "link": 3
+        }
+      ],
+      "outputs": [],
+      "properties": {
+        "Node name for S&R": "PreviewImage"
+      },
+      "widgets_values": [],
+      "title": "Optional: before moving layers"
+    },
+    {
+      "id": 6,
+      "type": "Note",
+      "pos": [
+        45,
+        1030
+      ],
+      "size": [
+        1950,
+        390
+      ],
+      "flags": {},
+      "order": 5,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [],
+      "properties": {
+        "Node name for S&R": "Note"
+      },
+      "widgets_values": [
+        "KLING EASY LAYERS • VISUAL EDITOR (CPU)\n\n1. Choose an existing Kling image in Load Image. No paid Kling call.\n2. In \"Easy Layers\" leave selection on Auto for product/person and background on Repair.\n3. Click QUEUE once. The automatic CPU model may download on first use.\n4. In \"Create Layered Image\", open its VISUAL COMPOSITOR / EDITOR.\n5. Drag the foreground object, resize, hide/show, adjust opacity, and save the composition.\n6. Queue again to update Save Image when you changed the editor layout.\n\nManual selection (for objects rembg cannot detect): paint the object in Load Image's mask editor, connect its MASK output to Easy Layers, and switch selection to Manual.\n\nThis produces two editable RASTER layers, not a text/vector design file. ComfyUI's native editor is needed for drag-and-drop. If you cannot find \"Create Layered Image\", update ComfyUI/frontend."
+      ],
+      "title": "Quick start — drag objects visually"
+    }
+  ],
+  "links": [
+    [
+      1,
+      1,
+      0,
+      2,
+      0,
+      "IMAGE"
+    ],
+    [
+      2,
+      2,
+      0,
+      3,
+      0,
+      "LAYERS"
+    ],
+    [
+      3,
+      2,
+      1,
+      5,
+      0,
+      "IMAGE"
+    ],
+    [
+      4,
+      3,
+      0,
+      4,
+      0,
+      "IMAGE"
+    ]
+  ],
+  "groups": [
+    {
+      "title": "01 · LOAD IMAGE",
+      "bounding": [
+        10,
+        100,
+        420,
+        450
+      ],
+      "color": "#3F789E",
+      "font_size": 22,
+      "locked": false
+    },
+    {
+      "title": "02 · EASY LAYERS • AUTOMATIC",
+      "bounding": [
+        460,
+        100,
+        535,
+        425
+      ],
+      "color": "#704ca0",
+      "font_size": 22,
+      "locked": false
+    },
+    {
+      "title": "03 · DRAG-AND-DROP EDITOR",
+      "bounding": [
+        1020,
+        100,
+        535,
+        490
+      ],
+      "color": "#568e6d",
+      "font_size": 22,
+      "locked": false
+    },
+    {
+      "title": "04 · EXPORT",
+      "bounding": [
+        1600,
+        100,
+        445,
+        235
+      ],
+      "color": "#568e6d",
+      "font_size": 22,
+      "locked": false
+    }
+  ],
+  "config": {},
+  "extra": {
+    "ds": {
+      "scale": 0.73,
+      "offset": [
+        0,
+        35
+      ]
+    },
+    "pack": "ComfyUI-Kling-Direct",
+    "description": "Easy visual CPU layer editing using native ImageCompositor. No Seedream or second API required.",
+    "title": "Kling Easy Layers — Visual Layer Editor"
+  },
+  "version": 0.4
+}
